@@ -3,8 +3,10 @@
 // Body cuando reemplaza una anterior (cotizacion_anterior_id = id de la anterior)
 
 export class DetalleVueloDto {
-  fecha: string;
-  vuelo: string;
+  fecha: string;           // formato: "2026-03-10" o "2026-03-10T14:30"
+  vuelo: string;           // número de vuelo ej: "LA123"
+  clase_tarifaria?: string;    // ej: "ECONOMY", "BUSINESS"
+  politica_equipaje?: string;  // descripción libre
 }
 
 export class DetalleCotizacionDto {

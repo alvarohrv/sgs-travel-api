@@ -103,22 +103,32 @@ export class SolicitudController {
         "vuelta": "2026-03-20"
       }
     }
+
   RESPUSTA:
-    {
-      "success": true,
-      "message": "Solicitud creada correctamente",
-      "data": {
-          "solicitud": {
-              "id": 2,
-              "radicado": "EMP001-2",
-              "estado": "PENDIENTE",
-              "tipo_de_vuelo": "IDA_Y_VUELTA",
-              "created_at": "2026-03-05T16:32:01.000Z"
-          }
-      },
-      "event": {
-          "type": "SOLICITUD_CREADA"
-      }
+  {
+    "success": true,
+    "message": "Solicitud creada correctamente",
+    "data": {
+        "solicitud": {
+            "id": 5,
+            "radicado": "EMP001-5",
+            "estado": "PENDIENTE",
+            "tipo_de_vuelo": "IDA_Y_VUELTA",
+            "ruta": {
+                "origen": "Bogotá",
+                "destino": "Medellín",
+                "preferencia_aerolinea": null
+            },
+            "fechas": {
+                "ida": "2026-03-10",
+                "vuelta": "2026-03-20"
+            },
+            "created_at": "2026-03-05T21:15:31.000Z"
+        }
+    },
+    "event": {
+        "type": "SOLICITUD_CREADA"
+    }
   }
   */
 
@@ -137,15 +147,15 @@ export class SolicitudController {
  DESCRIPCION: Cuando un administrador quiere iniciar la revisión de una solicitud, envía un POST a /solicitud/:id/iniciar-revision, donde :id es el ID de la solicitud que quiere revisar. El controlador captura ese ID a través del decorador @Param('id') y también puede recibir un cuerpo opcional con una observación. Luego, llama al método iniciarRevision del servicio, pasando el ID de la solicitud, el usuarioId del admin (que por ahora es fijo) y la observación. El servicio se encarga de cambiar el estado de la solicitud a EN_REVISION y registrar el evento correspondiente.
  ENDPOINT: POST /solicitud/:id/iniciar-revision
             Ejemplo: POST /solicitud/2/iniciar-revision
- BODY: {
-  "observacion": "Revisión iniciada por el admin"
+ BODY:  {
+  "observacion": "Revisión iniciada por el admin _S05"
  }
  RESPUESTA:
- {
+{
     "success": true,
-    "message": "Solicitud puesta en revisión",
+    "message": "Solicitud en revisión",
     "data": {
-        "solicitud_id": 2,
+        "solicitud_id": 4,
         "estado": "EN REVISION"
     },
     "event": {
@@ -153,8 +163,6 @@ export class SolicitudController {
     }
 }
 */
-
-
 
 
 
@@ -186,7 +194,7 @@ export class SolicitudController {
   }
 
   // GET /solicitud
-  // Por query string → GET /solicitudes?id=5 (se considera una ruta estática)
+  // Por query string → GET /solicitud?id=5 (se considera una ruta estática)
   @Get()
   async obtenerSolicitudes(@Query('id') id?: string) {
     if (id) {

@@ -75,6 +75,155 @@ export class CotizacionController {
     const usuarioId = 1 // Temporal: usuario administrador hardcoded
     return this.cotizacionService.crearCotizacion(Number(solicitudId), usuarioId, data)
   }
+  /*
+  DESCRIPCIÓN: Admin carga una nueva cotización para una solicitud que está en revisión o ya con cotizacion cargada. Si se proporciona un cotizacion_anterior_id, la nueva cotización reemplaza a la anterior y esta última queda anulada. La solicitud pasa a estado "COTIZACION CARGADA" y queda pendiente de revisión por parte del empleado.
+
+  ENDPOINT: POST /solicitud/:solicitudId/cotizacion
+              Ej: http://localhost:3000/solicitud/1/cotizacion
+  BODY (nueva cotización):
+  {
+    "cotizacion_anterior_id": null,
+    "aerolinea": "LATAM",
+    "valor_total": 850000,
+    "moneda": "COP",
+    "cobertura": "IDA_Y_VUELTA",
+    "detalle": {
+      "ida": {
+        "fecha": "2026-03-10",
+        "vuelo": "LA123"
+      },
+      "vuelta": {
+        "fecha": "2026-03-15",
+        "vuelo": "LA456"
+      }
+    }
+  }
+
+  RESPUESTA (nueva cotización)::
+{
+    "success": true,
+    "message": "Cotización creada correctamente",
+    "data": {
+        "cotizacion": {
+            "id": 3,
+            "solicitud_id": 4,
+            "cotizacion_anterior_id": null,
+            "estado": "COTIZACION NUEVA",
+            "aerolinea": "LATAM",
+            "valor_total": "850000",
+            "moneda": "COP",
+            "cobertura": "IDA_Y_VUELTA",
+            "detalle": {
+                "ida": {
+                    "fecha": "2026-03-10",
+                    "vuelo": "LA123"
+                },
+                "vuelta": {
+                    "fecha": "2026-03-15",
+                    "vuelo": "LA456"
+                }
+            },
+            "created_at": "2026-03-05T21:23:24.000Z"
+        }
+    },
+    "event": {
+        "type": "COTIZACION_CREADA",
+        "affected_entities": [
+            {
+                "entity": "solicitud",
+                "id": 4,
+                "new_state": "COTIZACION CARGADA"
+            }
+        ]
+    }
+  }
+
+
+    ////////////////////
+
+      BODY (remplazo cotización):
+
+    {
+      "cotizacion_anterior_id": 3,
+      "aerolinea": "LATAM",
+      "valor_total": 840000,
+      "moneda": "COP",
+      "cobertura": "IDA_Y_VUELTA",
+      "detalle": {
+        "ida": {
+          "fecha": "2026-03-13",
+          "vuelo": "LA456"
+        },
+        "vuelta": {
+          "fecha": "2026-03-15",
+          "vuelo": "LA456"
+        }
+      }
+    }
+
+
+
+  RESPUESTA EN CASO DE REMPLAZO:
+    {
+      "success": true,
+      "message": "Cotización reemplazada correctamente",
+      "data": {
+          "cotizacion": {
+              "id": 4,
+              "solicitud_id": 4,
+              "cotizacion_anterior_id": 3,
+              "estado": "COTIZACION NUEVA",
+              "aerolinea": "LATAM",
+              "valor_total": "840000",
+              "moneda": "COP",
+              "cobertura": "IDA_Y_VUELTA",
+              "detalle": {
+                  "ida": {
+                      "fecha": "2026-03-13",
+                      "vuelo": "LA456"
+                  },
+                  "vuelta": {
+                      "fecha": "2026-03-15",
+                      "vuelo": "LA456"
+                  }
+              },
+              "created_at": "2026-03-05T21:26:19.000Z"
+          }
+      },
+      "event": {
+          "type": "COTIZACION_REEMPLAZADA",
+          "affected_entities": [
+              {
+                  "entity": "cotizacion",
+                  "id": 3,
+                  "new_state": "COTIZACION ANULADA"
+              },
+              {
+                  "entity": "solicitud",
+                  "id": 4,
+                  "new_state": "COTIZACION CARGADA"
+              }
+          ]
+      }
+    }
+
+  */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   // 2️⃣ Empleado rechaza cotización (comentario obligatorio)
   // POST /cotizacion/:id/rechazar
@@ -87,6 +236,20 @@ export class CotizacionController {
     const usuarioId = 1 // Temporal: hardcoded
     return this.cotizacionService.rechazarCotizacion(Number(id), usuarioId, data)
   }
+  /*
+  DESCRIPCIÓN: Empleado rechaza una cotización específica, proporcionando un comentario obligatorio. La cotización pasa a estado "COTIZACION RECHAZADA" y la solicitud vuelve a estado "EN REVISION" para que el admin pueda corregir o cargar una nueva cotización.
+  ENDPOINT: POST /cotizacion/:id/rechazar
+            Ej: http://localhost:3000/cotizacion/2/rechazar
+  BODY:
+  {
+    "comentario": "El valor total no coincide con lo acordado, por favor corregir." 
+  }
+  RESPUESTA:
+
+
+
+ */
+
 
   // 3️⃣ Empleado selecciona cotización (opción primaria o secundaria)
   // POST /cotizacion/:id/seleccionar

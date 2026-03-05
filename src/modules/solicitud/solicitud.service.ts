@@ -50,6 +50,19 @@ export class SolicitudService {
         observacion: `Solicitud creada - ${data.tipo_de_vuelo} de ${data.ruta.origen} a ${data.ruta.destino}`
       }
     })
+
+    // Persistir detalle del vuelo
+    await this.prisma.detalle_vuelo_solicitud.create({
+      data: {
+        solicitud_id: solicitud.id,
+        origen: data.ruta.origen,
+        destino: data.ruta.destino,
+        fecha_ida: new Date(data.fechas.ida),
+        fecha_vuelta: data.fechas.vuelta ? new Date(data.fechas.vuelta) : null,
+        preferencia_aerolinea: data.ruta.preferencia_aerolinea ?? null,
+      }
+    })
+
     return {
       success: true,
       message: 'Solicitud creada correctamente',
@@ -59,6 +72,15 @@ export class SolicitudService {
           radicado: solicitud.radicado,
           estado: solicitud.estado_solicitud.estado,
           tipo_de_vuelo: solicitud.tipo_de_vuelo,
+          ruta: {
+            origen: data.ruta.origen,
+            destino: data.ruta.destino,
+            preferencia_aerolinea: data.ruta.preferencia_aerolinea ?? null,
+          },
+          fechas: {
+            ida: data.fechas.ida,
+            vuelta: data.fechas.vuelta ?? null,
+          },
           created_at: solicitud.created_at
         }
       },

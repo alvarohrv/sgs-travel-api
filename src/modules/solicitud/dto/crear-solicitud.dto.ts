@@ -1,6 +1,7 @@
 export class RutaDto {
   origen: string;
   destino: string;
+  preferencia_aerolinea?: string; // opcional: aerolínea preferida por el empleado
 }
 
 export class FechasDto {

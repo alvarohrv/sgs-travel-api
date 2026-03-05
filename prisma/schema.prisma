@@ -44,6 +44,7 @@ model cotizacion {
   estado_cotizacion           estado_cotizacion             @relation(fields: [estado_actual_id], references: [id], onUpdate: Restrict, map: "fk_cotizacion_estado")
   solicitud                   solicitud                     @relation(fields: [solicitud_id], references: [id], onUpdate: Restrict, map: "fk_cotizacion_solicitud")
   historial_estado_cotizacion historial_estado_cotizacion[]
+  segmento_cotizacion         segmento_cotizacion[]
 
   @@index([cotizacion_anterior_id], map: "fk_cotizacion_anterior")
   @@index([estado_actual_id], map: "fk_cotizacion_estado")
@@ -137,6 +138,7 @@ model solicitud {
   updated_at                 DateTime?                    @db.Timestamp(0)
   deleted_at                 DateTime?                    @db.Timestamp(0)
   cotizacion                 cotizacion[]
+  detalle_vuelo_solicitud    detalle_vuelo_solicitud[]
   historial_estado_solicitud historial_estado_solicitud[]
   estado_solicitud           estado_solicitud             @relation(fields: [estado_actual_id], references: [id], onUpdate: Restrict, map: "fk_solicitud_estado")
   usuario                    usuario                      @relation(fields: [usuario_id], references: [id], onUpdate: Restrict, map: "fk_solicitud_usuario")
@@ -158,4 +160,35 @@ model usuario {
   historial_estado_cotizacion historial_estado_cotizacion[]
   historial_estado_solicitud  historial_estado_solicitud[]
   solicitud                   solicitud[]
+}
+
+model detalle_vuelo_solicitud {
+  id                    Int       @id @default(autoincrement()) @db.UnsignedInt
+  solicitud_id          Int       @db.UnsignedInt
+  preferencia_aerolinea String?   @db.VarChar(100)
+  origen                String    @db.VarChar(100)
+  destino               String    @db.VarChar(100)
+  fecha_ida             DateTime  @db.Date
+  fecha_vuelta          DateTime? @db.Date
+  solicitud             solicitud @relation(fields: [solicitud_id], references: [id], onUpdate: Restrict, map: "fk_detalle_solicitud")
+
+  @@index([solicitud_id], map: "fk_detalle_solicitud")
+}
+
+model segmento_cotizacion {
+  id                Int                               @id @default(autoincrement()) @db.UnsignedInt
+  cotizacion_id     Int                               @db.UnsignedInt
+  tipo_segmento     segmento_cotizacion_tipo_segmento
+  numero_vuelo      String                            @db.VarChar(20)
+  fecha_vuelo       DateTime                          @db.DateTime(0)
+  clase_tarifaria   String?                           @db.VarChar(50)
+  politica_equipaje String?                           @db.Text
+  cotizacion        cotizacion                        @relation(fields: [cotizacion_id], references: [id], onUpdate: Restrict, map: "fk_segmento_cotizacion")
+
+  @@index([cotizacion_id], map: "fk_segmento_cotizacion")
+}
+
+enum segmento_cotizacion_tipo_segmento {
+  IDA
+  VUELTA
 }
