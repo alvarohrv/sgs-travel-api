@@ -1,10 +1,26 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+// import { AppController } from './app.controller';
+// import { AppService } from './app.service';
+import { SolicitudModule } from './modules/solicitud/solicitud.module';
+import { CotizacionModule } from './modules/cotizacion/cotizacion.module';
+import { BoletoModule } from './modules/boleto/boleto.module';
+// import { ComentarioModule } from './modules/comentario/comentario.module';
+import { UsuarioModule } from './modules/usuario/usuario.module';
+import { HistorialModule } from './modules/historial/historial.module';
+import { PrismaModule } from '../prisma/prisma.module';
+
 
 @Module({
-  imports: [],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [
+    PrismaModule,
+    SolicitudModule,
+    CotizacionModule,
+    BoletoModule,
+    UsuarioModule,
+    HistorialModule
+    // ComentarioModule
+  ]
+  // controllers: [AppController], 
+  // providers: [AppService],
 })
 export class AppModule {}
