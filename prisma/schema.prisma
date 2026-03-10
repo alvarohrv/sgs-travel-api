@@ -6,6 +6,29 @@ datasource db {
   provider = "mysql"
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CONVENCIÓN DE CAMPOS DE AUDITORÍA
+// ─────────────────────────────────────────────────────────────────────────────
+//
+//  created_at  DateTime  @default(now())   → TODOS los modelos
+//                                            Cuándo se creó el registro. Nunca cambia.
+//
+//  updated_at  DateTime? @updatedAt        → solo solicitud, cotizacion, boleto
+//                                            NULL al crear. Se rellena automáticamente
+//                                            cuando Prisma hace un .update().
+//                                            Solo refleja cambios de estado, NO edición
+//                                            de datos (estos modelos son inmutables).
+//
+//  closed_at   DateTime?                   → solo solicitud, cotizacion, boleto
+//                                            NULL por defecto. Se llena manualmente
+//                                            cuando el ciclo de vida de la entidad
+//                                            termina (soft-close, no borrado).
+//
+//  disabled_at DateTime?                   → solo usuario
+//                                            NULL por defecto. Se llena cuando el
+//                                            usuario es desactivado (soft-disable).
+// ─────────────────────────────────────────────────────────────────────────────
+
 model boleto {
   id                      Int                       @id @default(autoincrement()) @db.UnsignedInt
   cotizacion_id           Int                       @db.UnsignedInt
@@ -18,6 +41,8 @@ model boleto {
   valor_final             Decimal?                  @db.Decimal(14, 2)
   fecha_compra            DateTime?                 @db.Date
   created_at              DateTime                  @default(now()) @db.Timestamp(0)
+  updated_at              DateTime?                 @updatedAt @db.Timestamp(0)   // NULL al crear; se llena automáticamente en cada .update() (solo refleja cambio de estado)
+  closed_at               DateTime?                 @db.Timestamp(0)              // NULL por defecto; se llena manualmente al cerrar el ciclo de vida del boleto
   cotizacion              cotizacion                @relation(fields: [cotizacion_id], references: [id], onUpdate: Restrict, map: "fk_boleto_cotizacion")
   estado_boleto           estado_boleto             @relation(fields: [estado_actual_id], references: [id], onUpdate: Restrict, map: "fk_boleto_estado")
   boleto                  boleto?                   @relation("boletoToboleto", fields: [reemplaza_boleto_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_boleto_reemplaza")
@@ -38,6 +63,8 @@ model cotizacion {
   valor_total                 Decimal                       @db.Decimal(14, 2)
   aerolinea                   String?                       @db.VarChar(100)
   created_at                  DateTime                      @default(now()) @db.Timestamp(0)
+  updated_at                  DateTime?                     @updatedAt @db.Timestamp(0)   // NULL al crear; se llena automáticamente en cada .update() (solo refleja cambio de estado)
+  closed_at                   DateTime?                     @db.Timestamp(0)              // NULL por defecto; se llena manualmente al cerrar el ciclo de vida de la cotización
   boleto                      boleto[]
   cotizacion                  cotizacion?                   @relation("cotizacionTocotizacion", fields: [cotizacion_anterior_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_cotizacion_anterior")
   other_cotizacion            cotizacion[]                  @relation("cotizacionTocotizacion")
@@ -56,6 +83,7 @@ model estado_boleto {
   estado                  String                    @db.VarChar(100)
   slug                    String                    @unique(map: "slug") @db.VarChar(100)
   editable                Boolean?                  @default(true)
+  created_at              DateTime                  @default(now()) @db.Timestamp(0)
   boleto                  boleto[]
   historial_estado_boleto historial_estado_boleto[]
 }
@@ -65,6 +93,7 @@ model estado_cotizacion {
   estado                      String                        @db.VarChar(100)
   slug                        String                        @unique(map: "slug") @db.VarChar(100)
   editable                    Boolean?                      @default(true)
+  created_at                  DateTime                      @default(now()) @db.Timestamp(0)
   cotizacion                  cotizacion[]
   historial_estado_cotizacion historial_estado_cotizacion[]
 }
@@ -76,6 +105,7 @@ model estado_solicitud {
   color_hexa_main            String?                      @db.VarChar(10)
   color_hexa_sec             String?                      @db.VarChar(10)
   editable                   Boolean?                     @default(true)
+  created_at                 DateTime                     @default(now()) @db.Timestamp(0)
   historial_estado_solicitud historial_estado_solicitud[]
   solicitud                  solicitud[]
 }
@@ -135,8 +165,8 @@ model solicitud {
   estado_actual_id           Int                          @db.UnsignedInt
   tipo_de_vuelo              String                       @db.VarChar(30)
   created_at                 DateTime                     @default(now()) @db.Timestamp(0)
-  updated_at                 DateTime?                    @db.Timestamp(0)
-  deleted_at                 DateTime?                    @db.Timestamp(0)
+  updated_at                 DateTime?                    @updatedAt @db.Timestamp(0)   // NULL al crear; se llena automáticamente en cada .update() (solo refleja cambio de estado)
+  closed_at                  DateTime?                    @db.Timestamp(0)              // NULL por defecto; se llena manualmente al cerrar el ciclo de vida de la solicitud
   cotizacion                 cotizacion[]
   detalle_vuelo_solicitud    detalle_vuelo_solicitud[]
   historial_estado_solicitud historial_estado_solicitud[]
@@ -156,6 +186,7 @@ model usuario {
   password_hash               String                        @db.Text
   rol                         String                        @db.VarChar(30)
   created_at                  DateTime                      @default(now()) @db.Timestamp(0)
+  disabled_at                 DateTime?                     @db.Timestamp(0)              // NULL por defecto; se llena manualmente al desactivar el usuario (soft-disable)
   historial_estado_boleto     historial_estado_boleto[]
   historial_estado_cotizacion historial_estado_cotizacion[]
   historial_estado_solicitud  historial_estado_solicitud[]
@@ -170,6 +201,7 @@ model detalle_vuelo_solicitud {
   destino               String    @db.VarChar(100)
   fecha_ida             DateTime  @db.Date
   fecha_vuelta          DateTime? @db.Date
+  created_at            DateTime  @default(now()) @db.Timestamp(0)
   solicitud             solicitud @relation(fields: [solicitud_id], references: [id], onUpdate: Restrict, map: "fk_detalle_solicitud")
 
   @@index([solicitud_id], map: "fk_detalle_solicitud")
@@ -183,6 +215,7 @@ model segmento_cotizacion {
   fecha_vuelo       DateTime                          @db.DateTime(0)
   clase_tarifaria   String?                           @db.VarChar(50)
   politica_equipaje String?                           @db.Text
+  created_at        DateTime                          @default(now()) @db.Timestamp(0)
   cotizacion        cotizacion                        @relation(fields: [cotizacion_id], references: [id], onUpdate: Restrict, map: "fk_segmento_cotizacion")
 
   @@index([cotizacion_id], map: "fk_segmento_cotizacion")

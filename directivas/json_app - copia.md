@@ -44,17 +44,18 @@ Estado inicial: `PENDIENTE`
 * JSON de solicitud (request)
 URL: /solicitud (POST)
 ```json
-{
-  "tipo_de_vuelo": "IDA_Y_VUELTA",
-  "ruta": {
-    "origen": "BOG",
-    "destino": "MDE"
-  },
-  "fechas": {
-    "ida": "2026-03-10",
-    "vuelta": "2026-03-15"
-  }
-}
+    {
+      "tipo_de_vuelo": "IDA_Y_VUELTA",
+      "ruta": {
+        "origen": "Bogotá",
+        "destino": "Medellín",
+        "preferencia_aerolinea": "LATAM"
+      },
+      "fechas": {
+        "ida": "2026-03-10",  
+        "vuelta": "2026-03-20"
+      }
+    }
 ```
 Nota:
 El usuario_id no debe venir del frontend.
@@ -64,22 +65,31 @@ Se obtiene del usuario autenticado (token JWT o sesión).
 
 * JSON de respuesta (response)
 ```json
-{
-  "success": true,
-  "message": "Solicitud creada correctamente",
-  "data": {
-    "solicitud": {
-      "id": 25,
-      "radicado": "EMP123-25",
-      "estado": "PENDIENTE",
-      "tipo_de_vuelo": "IDA_Y_VUELTA"
+ {
+    "success": true,
+    "message": "Solicitud creada correctamente",
+    "data": {
+        "solicitud": {
+            "id": 6,
+            "radicado": "EMP001-6",
+            "estado": "PENDIENTE",
+            "tipo_de_vuelo": "IDA_Y_VUELTA",
+            "ruta": {
+                "origen": "Bogotá",
+                "destino": "Medellín",
+                "preferencia_aerolinea": "LATAM"
+            },
+            "fechas": {
+                "ida": "2026-03-10",
+                "vuelta": "2026-03-20"
+            },
+            "created_at": "2026-03-10T01:04:47.000Z"
+        }
+    },
+    "event": {
+        "type": "SOLICITUD_CREADA"
     }
-  },
-  "event": {
-    "type": "SOLICITUD_CREADA"
-  }
 }
-
 ```
 
 ## 🟡 2. Admin abre solicitud
@@ -98,23 +108,109 @@ Si está en PENDIENTE la solicitud
 Y el usuario es Admin
 → Entonces cambia a EN_REVISION cuando Admin inicie la revision
 
+* JSON de solicitud (request)
+URL:  POST /solicitud/6/iniciar-revision (Accion explicita - cuerpo opcional)
+```json
+ {
+  "observacion": "Revisión iniciada por el admin _S05"
+ }
+```
+
 * JSON de respuesta (response)
 ```json
 {
-  "success": true,
-  "message": "Solicitud en revisión",
-  "data": {
-    "solicitud_id": 25,
-    "estado": "EN REVISION"
-  },
-  "event": {
-    "type": "SOLICITUD_EN_REVISION"
-  }
+    "success": true,
+    "message": "Solicitud en revisión",
+    "data": {
+        "solicitud_id": 6,
+        "estado": "EN REVISION"
+    },
+    "event": {
+        "type": "SOLICITUD_EN_REVISION"
+    }
 }
-
-
 ```
-## 🟣 3. Admin carga cotización
+## 🟡 3. Admin revisa una cotizacion rechazada
+El Admin revisa una solicitud que estaba en `COTIZACION_RECHAZADA` y decide que se puede revisar de nuevo, entonces la solicitud vuelve a `EN_REVISION` para que el admin pueda cargar una nueva cotización o conservar la existente.
+Si estaba en `COTIZACION_RECHAZADA` → cambia a `EN_REVISION`
+
+* JSON de solicitud (request)
+URL:  POST /solicitud/55/iniciar-revision (Accion explicita - cuerpo vacio)
+```json
+ {
+  "observacion": "Revisión iniciada nuevamente por el admin _S05"
+ }
+ * JSON de respuesta (response)
+```json
+{
+    "success": true,
+    "message": "Solicitud en revisión",
+    "data": {
+        "solicitud_id": 55,
+        "estado": "EN REVISION"
+    },
+    "event": {
+        "type": "SOLICITUD_EN_REVISION"
+    }
+}
+```
+## 🟣 4. Admin rechaza solicitud
+Verifica que solicitud esté en EN_REVISION
+Cambia solicitud → `RECHAZADA`
+Registra historial
+Devuelve respuesta
+
+Estos ocurre cuando el admin revisa la solicitud y decide que no se puede cotizar (ej: falta información crítica, fechas no válidas, duplicados, etc).
+Eventualmente la solicitud rechazada pasara a un estado "CERRADA".
+
+* JSON de solicitud (request)
+URL:  POST /solicitud/44/rechazar (Accion explicita - cuerpo vacio)
+```json
+  {
+    "comentario": "Solicitud no cumple con los requisitos mínimos para ser procesada. Por favor revise la información y genera una nueva solicitud." 
+  }
+```
+
+* JSON de respuesta (response)
+```json
+  {
+      "success": true,
+      "message": "Solicitud rechazada correctamente",
+      "data": {
+          "solicitud_id": 44,
+          "estado": "RECHAZADA",
+          "comentario": "El valor total no coincide con lo acordado, por favor corregir."
+      },
+      "event": {
+          "type": "SOLICITUD_RECHAZADA"
+      }
+  }
+```
+
+## 🟣 5. Obtener todas las solicitudes
+No modifica estado, solo devuelve información. Es un GET tradicional.
+El endpoint es GET /solicitud retorna una lista de solicitudes
+El endpoint soporta query params para filtrar, paginar y ordenar los resultados.
+
+
+* JSON de solicitud (request)
+URL: GET /solicitud
+Soporta query params opcionales:
+?id=5           → busca una solicitud específica por ID
+?page=2         → página 2 (default: 1)
+?limit=5        → 5 resultados por página (default: 10)
+?orden=asc      → más antiguas primero (default: 'desc' = más recientes primero)
+// Ejemplos:
+//   GET /solicitud                      → por defauld, página 1, 10 por página, más recientes primero
+//   GET /solicitud?page=2&limit=5       → página 2, 5 por página
+//   GET /solicitud?page=1&limit=3&orden=asc → 3 por página, más antiguas primero
+
+nota: también se puede tener un endpoint específico para obtener todas las solicitudes sin filtros, por ejemplo GET /solicitud/todas, que internamente llamaría al mismo método del servicio pero sin pasarle parámetros, lo que haría que use los valores por defecto.
+// Ejemplo:
+GET /solicitud/todas → devuelve todas las solicitudes sin paginar ni filtrar
+
+
+## 🟣 6. Admin carga cotización
 Verifica que solicitud esté en EN_REVISION
 Crea cotización en `COTIZACION_NUEVA`
 Cambia solicitud → `COTIZACION_CARGADA`
@@ -182,7 +278,7 @@ La solicitud “escuchó” el evento.
 En realidad no escucha sola.
 El backend lo hace en la misma transacción.
 
-## 🔴 4. Solicitante rechaza cotización (requiere comentario obligatorio)
+## 🔴 7. Solicitante rechaza cotización (requiere comentario obligatorio)
 Se verifica que la cotización esté en estado válido (ej: COTIZACION_NUEVA)
 Cambia cotización → COTIZACION_RECHAZADA
 Cambia solicitud → EN_REVISION
@@ -226,7 +322,7 @@ URL:  POST /cotizacion/26/rechazar
 }
 ```
 
-## 🔴 5. COTIZACION reemplaza otra (sea por un rechazo o novedad)
+## 🔴 8. COTIZACION reemplaza otra (sea por un rechazo o novedad)
 Reglas:
 Cotizacion anterior → `COTIZACION_ANULADA`
 Cotización nueva en: `COTIZACION_NUEVA`
@@ -298,7 +394,7 @@ Registra historial
 }
 ```
 
-## 🔴 6. COTIZACION fue revizada y se conserva
+## 🔴 9. COTIZACION fue revizada y se conserva
 El admin revisa, decide NO crear una nueva cotización.
 La misma cotización vuelve a estar activa.
 Cotización → vuelve a `COTIZACION_NUEVA`
@@ -340,7 +436,7 @@ Nota: No es PATCH, No es PUT, Es acción de negocio.
 ```
 nota: por tanto, no hay cotizacion_anterior_id.
 
-## 🟠 7. Generar Novedad en cotizacion (requiere comentario obligatorio)
+## 🟠 10. Generar Novedad en cotizacion (requiere comentario obligatorio)
 Se genera una `NOVEDAD` tanto en cotizacion como en solicitud
 
 * JSON de solicitud (request)
@@ -396,7 +492,7 @@ const rol = req.user.rol;
 
 ```
 
-## 🔴 8. Usuario selecciona Cotización (Primaria y opcional Secundaria)
+## 🔴 11. Usuario selecciona Cotización (Primaria y opcional Secundaria)
 No son estados “bloqueantes”, solo indican preferencia del usuario.
 
 El usuario debe:
@@ -468,7 +564,7 @@ POST /solicitud/25/seleccionar-cotizacion
 }
 ```
 
-## 🟢 9. Se genera el boleto
+## 🟢 12. Se genera el boleto
 Reglas:
 * Cotización elegida → `SELECCIONADA`
 * Cotizaciones no elegidas → `COTIZACION_ANULADA`
@@ -536,7 +632,7 @@ URL:  POST /cotizacion/75/boleto
 ```
 
 
-## 🔁 11. Boleto reemplaza otro  (po ejemplo por novedad)
+## 🔁 13. Boleto reemplaza otro  (po ejemplo por novedad)
 Reglas:
 Boleto anterior → `BOLETO_ANULADO`
 Boleto nuevo → `BOLETO_EMITIDO`
@@ -600,7 +696,7 @@ El Boleto requiere de la data nuevamente porque es documento legal emitido contr
 
 ```
 
-## 🟠 12. Generar Novedad en Boleto (requiere comentario obligatorio)
+## 🟠 14. Generar Novedad en Boleto (requiere comentario obligatorio)
 Se genera una `NOVEDAD` tanto en el boleto como en la solicitud.
 
 ### Reglas:
@@ -661,7 +757,7 @@ Se obtiene del usuario autenticado (token JWT o sesión).
 }
 ```
 
-## 🔁 13. Boleto revisado y se conserva
+## 🔁 15. Boleto revisado y se conserva
 El boleto sale del estado `NOVEDAD` y vuelve a `BOLETO_EMITIDO`.
 
 Reglas:
@@ -708,7 +804,7 @@ Opcional (comentario del admin):
 }
 ```
 
-## ✅ 14. Solicitante conforme
+## ✅ 16. Solicitante conforme
 
 El solicitante confirma que el boleto emitido es correcto y el proceso finaliza.
 

@@ -1,12 +1,26 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { CrearSolicitudDto } from './dto/crear-solicitud.dto'
+import { EliminarSolicitudDto } from './dto/eliminar-solicitud.dto'
+import { EliminarTodasSolicitudesDto } from './dto/eliminar-todas-solicitudes.dto'
 import { IniciarRevisionDto } from './dto/iniciar-revision.dto'
 import { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto'
 import { RespuestaApiEstandar } from './interfaces/respuesta-api.interface'
 
 @Injectable()
 export class SolicitudService {
+  private readonly tablasReiniciables = [
+    'historial_estado_boleto',
+    'historial_estado_cotizacion',
+    'segmento_cotizacion',
+    'boleto',
+    'historial_estado_solicitud',
+    'detalle_vuelo_solicitud',
+    'cotizacion',
+    'solicitud',
+  ]
+
   constructor(private prisma: PrismaService) {}
 
   /**
@@ -91,36 +105,69 @@ export class SolicitudService {
   }
 
   /**
-   * Obtener todas las solicitudes
+   * Obtener solicitudes con paginación y orden configurable
+   *
+   * Parámetros opcionales recibidos desde el controlador:
+   * @param page  - Número de página (empieza en 1). Default: 1
+   * @param limit - Cuántos registros traer por página. Default: 10
+   * @param orden - 'asc' (más antiguas primero) | 'desc' (más recientes primero). Default: 'desc'
+   *
+   * Cómo funciona skip/take en Prisma (equivale a SQL LIMIT/OFFSET):
+   *   take  → cuántos registros tomar  (como LIMIT en SQL)
+   *   skip  → cuántos registros saltar (como OFFSET en SQL)
+   *
+   * Ejemplo visual con limit=3:
+   *   Página 1 → skip=0,  take=3 → registros 1,2,3
+   *   Página 2 → skip=3,  take=3 → registros 4,5,6
+   *   Página 3 → skip=6,  take=3 → registros 7,8,9
+   *
+   * Fórmula: skip = (page - 1) * limit
    */
-  async obtenerSolicitudes(): Promise<RespuestaApiEstandar> {
-    const solicitudes = await this.prisma.solicitud.findMany({
-      include: {
-        usuario: {
-          select: {
-            id: true,
-            nombre: true,
-            username: true,
+  async obtenerSolicitudes(
+    page: number = 1,
+    limit: number = 10,
+    orden: 'asc' | 'desc' = 'desc',
+  ): Promise<RespuestaApiEstandar> {
+
+    // Calculamos cuántos registros saltar para llegar a la página pedida
+    const skip = (page - 1) * limit
+
+    // Ejecutamos dos consultas en paralelo:
+    // 1. Los registros de la página actual (con skip/take)
+    // 2. El total de registros en la tabla (para que el cliente sepa cuántas páginas hay)
+    const [solicitudes, total] = await Promise.all([
+      this.prisma.solicitud.findMany({
+        skip,      // saltar los registros de páginas anteriores
+        take: limit, // tomar solo 'limit' registros
+        include: {
+          usuario: {
+            select: { id: true, nombre: true, username: true }
+          },
+          estado_solicitud: true,
+          cotizacion: {
+            include: { estado_cotizacion: true }
           }
         },
-        estado_solicitud: true,
-        cotizacion: {
-          include: {
-            estado_cotizacion: true
-          }
-        }
-      },
-      orderBy: {
-        created_at: 'desc'
-      }
-    })
+        orderBy: { created_at: orden } // 'desc' = más recientes primero
+      }),
+      this.prisma.solicitud.count() // total real de registros en la tabla
+    ])
+
+    // Calculamos el total de páginas para que el cliente pueda construir la navegación
+    const totalPaginas = Math.ceil(total / limit)
 
     return {
       success: true,
       message: 'Solicitudes obtenidas correctamente',
       data: {
         solicitudes,
-        total: solicitudes.length
+        paginacion: {
+          total,         // total de registros en la BD
+          totalPaginas,  // cuántas páginas existen con este limit
+          paginaActual: page,
+          limit,
+          orden,
+        }
       }
     }
   }
@@ -199,7 +246,7 @@ export class SolicitudService {
   ): Promise<RespuestaApiEstandar> {
 
     //Definimos qué estados pueden pasar a "EN REVISION"
-    const estadosPermitidos = ['pendiente', 'cotizacion_rechazada', 'novedad'];
+    const estadosPermitidos = ['pendiente', 'cotizacion_rechazada', 'novedad','rechazada'];
     
     // Verificar que la solicitud existe
     const solicitud = await this.prisma.solicitud.findUnique({
@@ -346,5 +393,283 @@ export class SolicitudService {
     const codEmpleado = usuario?.cod_empleado || 'EMP'
     
     return `${codEmpleado}-${consecutivo}`
+  }
+
+  /**
+   * Eliminar físicamente una solicitud y todos sus registros dependientes
+   */
+  async eliminarSolicitudCompletamente(
+    solicitudId: number,
+    data: EliminarSolicitudDto,
+  ): Promise<RespuestaApiEstandar> {
+    if (!Number.isInteger(solicitudId) || solicitudId <= 0) {
+      throw new BadRequestException('El ID de la solicitud debe ser un número entero positivo')
+    }
+
+    if (data.confirmacion?.trim().toUpperCase() !== 'ELIMINAR') {
+      throw new BadRequestException('Debe enviar la confirmación exacta "ELIMINAR" para borrar la solicitud')
+    }
+
+    const solicitud = await this.prisma.solicitud.findUnique({
+      where: { id: solicitudId },
+      select: {
+        id: true,
+        radicado: true,
+        cotizacion: {
+          select: {
+            id: true,
+            boleto: {
+              select: {
+                id: true,
+              }
+            }
+          }
+        }
+      }
+    })
+
+    if (!solicitud) {
+      throw new NotFoundException(`Solicitud con ID ${solicitudId} no encontrada`)
+    }
+
+    const cotizacionIds = solicitud.cotizacion.map((cotizacion) => cotizacion.id)
+    const boletoIds = solicitud.cotizacion.flatMap((cotizacion) =>
+      cotizacion.boleto.map((boleto) => boleto.id)
+    )
+
+    const eliminados = await this.prisma.$transaction(async (tx) => {
+      const resumen = await this.eliminarDependenciasSolicitudes(
+        tx,
+        [solicitudId],
+        cotizacionIds,
+        boletoIds,
+      )
+
+      await tx.solicitud.delete({
+        where: { id: solicitudId }
+      })
+
+      return {
+        ...resumen,
+        solicitudes: 1,
+      }
+    })
+
+    return {
+      success: true,
+      message: 'Solicitud eliminada completamente de la base de datos',
+      data: {
+        solicitud_id: solicitud.id,
+        radicado: solicitud.radicado,
+        motivo: data.motivo?.trim() || null,
+        eliminados,
+      },
+      event: {
+        type: 'SOLICITUD_ELIMINADA_COMPLETAMENTE'
+      }
+    }
+  }
+
+  /**
+   * Eliminar físicamente todas las solicitudes y sus registros dependientes
+   */
+  async eliminarTodasLasSolicitudes(
+    data: EliminarTodasSolicitudesDto,
+  ): Promise<RespuestaApiEstandar> {
+    if (data.confirmacion?.trim().toUpperCase() !== 'ELIMINAR_TODAS') {
+      throw new BadRequestException('Debe enviar la confirmación exacta "ELIMINAR_TODAS" para borrar todas las solicitudes')
+    }
+
+    const solicitudes = await this.prisma.solicitud.findMany({
+      select: {
+        id: true,
+        radicado: true,
+        cotizacion: {
+          select: {
+            id: true,
+            boleto: {
+              select: {
+                id: true,
+              }
+            }
+          }
+        }
+      }
+    })
+
+    const solicitudIds = solicitudes.map((solicitud) => solicitud.id)
+    const cotizacionIds = solicitudes.flatMap((solicitud) =>
+      solicitud.cotizacion.map((cotizacion) => cotizacion.id)
+    )
+    const boletoIds = solicitudes.flatMap((solicitud) =>
+      solicitud.cotizacion.flatMap((cotizacion) =>
+        cotizacion.boleto.map((boleto) => boleto.id)
+      )
+    )
+
+    const eliminados = await this.prisma.$transaction(async (tx) => {
+      const resumen = await this.eliminarDependenciasSolicitudes(
+        tx,
+        solicitudIds,
+        cotizacionIds,
+        boletoIds,
+      )
+
+      const solicitudesEliminadas = await tx.solicitud.deleteMany({
+        where: {
+          id: {
+            in: solicitudIds,
+          }
+        }
+      })
+
+      return {
+        ...resumen,
+        solicitudes: solicitudesEliminadas.count,
+      }
+    })
+
+    let indicesReiniciados: string[] = []
+
+    if (data.reiniciar_indices) {
+      indicesReiniciados = await this.reiniciarAutoIncrementTablasSolicitudes()
+    }
+
+    return {
+      success: true,
+      message: 'Todas las solicitudes fueron eliminadas completamente de la base de datos',
+      data: {
+        total_solicitudes_encontradas: solicitudIds.length,
+        radicados_eliminados: solicitudes.map((solicitud) => solicitud.radicado),
+        motivo: data.motivo?.trim() || null,
+        reiniciar_indices: Boolean(data.reiniciar_indices),
+        tablas_con_indices_reiniciados: indicesReiniciados,
+        eliminados,
+      },
+      event: {
+        type: 'TODAS_LAS_SOLICITUDES_ELIMINADAS_COMPLETAMENTE'
+      }
+    }
+  }
+
+  private async eliminarDependenciasSolicitudes(
+    tx: Prisma.TransactionClient,
+    solicitudIds: number[],
+    cotizacionIds: number[],
+    boletoIds: number[],
+  ) {
+    const historialBoletosEliminados = boletoIds.length
+      ? await tx.historial_estado_boleto.deleteMany({
+          where: {
+            boleto_id: {
+              in: boletoIds,
+            }
+          }
+        })
+      : { count: 0 }
+
+    if (boletoIds.length) {
+      await tx.boleto.updateMany({
+        where: {
+          id: {
+            in: boletoIds,
+          }
+        },
+        data: {
+          reemplaza_boleto_id: null,
+        }
+      })
+    }
+
+    const boletosEliminados = boletoIds.length
+      ? await tx.boleto.deleteMany({
+          where: {
+            id: {
+              in: boletoIds,
+            }
+          }
+        })
+      : { count: 0 }
+
+    const historialCotizacionesEliminados = cotizacionIds.length
+      ? await tx.historial_estado_cotizacion.deleteMany({
+          where: {
+            cotizacion_id: {
+              in: cotizacionIds,
+            }
+          }
+        })
+      : { count: 0 }
+
+    const segmentosEliminados = cotizacionIds.length
+      ? await tx.segmento_cotizacion.deleteMany({
+          where: {
+            cotizacion_id: {
+              in: cotizacionIds,
+            }
+          }
+        })
+      : { count: 0 }
+
+    if (cotizacionIds.length) {
+      await tx.cotizacion.updateMany({
+        where: {
+          id: {
+            in: cotizacionIds,
+          }
+        },
+        data: {
+          cotizacion_anterior_id: null,
+        }
+      })
+    }
+
+    const cotizacionesEliminadas = cotizacionIds.length
+      ? await tx.cotizacion.deleteMany({
+          where: {
+            id: {
+              in: cotizacionIds,
+            }
+          }
+        })
+      : { count: 0 }
+
+    const detallesEliminados = solicitudIds.length
+      ? await tx.detalle_vuelo_solicitud.deleteMany({
+          where: {
+            solicitud_id: {
+              in: solicitudIds,
+            }
+          }
+        })
+      : { count: 0 }
+
+    const historialSolicitudEliminado = solicitudIds.length
+      ? await tx.historial_estado_solicitud.deleteMany({
+          where: {
+            solicitud_id: {
+              in: solicitudIds,
+            }
+          }
+        })
+      : { count: 0 }
+
+    return {
+      historial_boletos: historialBoletosEliminados.count,
+      boletos: boletosEliminados.count,
+      historial_cotizaciones: historialCotizacionesEliminados.count,
+      segmentos_cotizacion: segmentosEliminados.count,
+      cotizaciones: cotizacionesEliminadas.count,
+      detalle_vuelo_solicitud: detallesEliminados.count,
+      historial_solicitud: historialSolicitudEliminado.count,
+    }
+  }
+
+  private async reiniciarAutoIncrementTablasSolicitudes(): Promise<string[]> {
+    for (const tabla of this.tablasReiniciables) {
+      await this.prisma.$executeRawUnsafe(`ALTER TABLE ${tabla} AUTO_INCREMENT = 1`)
+    }
+
+    return this.tablasReiniciables
   }
 }

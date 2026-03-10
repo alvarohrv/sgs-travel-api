@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CrearCotizacionDto } from './dto/crear-cotizacion.dto';
+import { ReemplazarCotizacionDto } from './dto/reemplazar-cotizacion.dto';
 import { RechazarCotizacionDto } from './dto/rechazar-cotizacion.dto';
 import { SeleccionarCotizacionDto } from './dto/seleccionar-cotizacion.dto';
 import { NovedadCotizacionDto } from './dto/novedad-cotizacion.dto';
@@ -14,6 +15,13 @@ const ESTADOS_COTIZACION_RECHAZABLE = [
   'cotizacion_nueva',
   'opcion_primaria',
   'opcion_secundaria',
+];
+
+const ESTADOS_COTIZACION_SELECCIONABLE = [
+  'cotizacion_nueva',
+  'opcion_primaria',
+  'opcion_secundaria',
+  'cotizacion_descartada',
 ];
 
 // Estados de solicitud que permiten recibir cotizaciones
@@ -239,6 +247,49 @@ export class CotizacionService {
   }
 
   /**
+   * Admin reemplaza una cotización existente usando el ID anterior desde la URL
+   */
+  async reemplazarCotizacion(
+    solicitudId: number,
+    cotizacionId: number,
+    usuarioId: number,
+    data: ReemplazarCotizacionDto,
+  ) {
+    const cotizacionAnterior = await this.prisma.cotizacion.findUnique({
+      where: { id: cotizacionId },
+      include: {
+        estado_cotizacion: true,
+        solicitud: {
+          include: { estado_solicitud: true },
+        },
+      },
+    });
+
+    if (!cotizacionAnterior) {
+      throw new NotFoundException(
+        `Cotización con ID ${cotizacionId} no encontrada`,
+      );
+    }
+
+    if (cotizacionAnterior.solicitud_id !== solicitudId) {
+      throw new BadRequestException(
+        'La cotización a reemplazar no pertenece a la solicitud indicada',
+      );
+    }
+
+    if (cotizacionAnterior.estado_cotizacion.slug === 'cotizacion_anulada') {
+      throw new BadRequestException(
+        'No se puede reemplazar una cotización que ya fue anulada',
+      );
+    }
+
+    return this.crearCotizacion(solicitudId, usuarioId, {
+      ...data,
+      cotizacion_anterior_id: cotizacionId,
+    });
+  }
+
+  /**
    * 4️⃣ Empleado rechaza una cotización (comentario obligatorio)
    * URL: POST /cotizacion/:id/rechazar
    * Transición cotización: COTIZACION_NUEVA → COTIZACION_RECHAZADA
@@ -350,102 +401,225 @@ export class CotizacionService {
   }
 
   /**
-   * 4️⃣ Empleado selecciona cotización como opción primaria o secundaria
-   * URL: POST /cotizacion/:id/seleccionar
-   * Transición: COTIZACION_NUEVA → OPCION_PRIMARIA | OPCION_SECUNDARIA
-   * Efecto colateral: solicitud → PENDIENTE (pendiente de emisión de boleto)
+   * 4️⃣ Empleado selecciona cotizaciones por solicitud
+   * URL: POST /solicitud/:solicitudId/seleccionar-cotizacion
+   * Transición: cotización → OPCION_PRIMARIA | OPCION_SECUNDARIA | COTIZACION_DESCARTADA
+   * Efecto colateral: solicitud → EN_REVISION
    */
   async seleccionarCotizacion(
-    cotizacionId: number,
+    solicitudId: number,
     usuarioId: number,
     data: SeleccionarCotizacionDto,
   ) {
-    const cotizacion = await this.prisma.cotizacion.findUnique({
-      where: { id: cotizacionId },
-      include: { estado_cotizacion: true },
+    if (!data.cotizacion_primaria_id) {
+      throw new BadRequestException('Debe enviar una cotización primaria');
+    }
+
+    if (
+      data.cotizacion_secundaria_id &&
+      data.cotizacion_secundaria_id === data.cotizacion_primaria_id
+    ) {
+      throw new BadRequestException(
+        'La cotización secundaria no puede ser la misma que la primaria',
+      );
+    }
+
+    const solicitud = await this.prisma.solicitud.findUnique({
+      where: { id: solicitudId },
+      include: {
+        cotizacion: {
+          include: { estado_cotizacion: true },
+        },
+      },
     });
 
-    if (!cotizacion) {
+    if (!solicitud) {
       throw new NotFoundException(
-        `Cotización con ID ${cotizacionId} no encontrada`,
+        `Solicitud con ID ${solicitudId} no encontrada`,
       );
     }
 
-    if (cotizacion.estado_cotizacion.slug !== 'cotizacion_nueva') {
-      throw new BadRequestException(
-        `Solo se pueden seleccionar cotizaciones en estado COTIZACION NUEVA. Estado actual: ${cotizacion.estado_cotizacion.estado}`,
-      );
-    }
+    const idsSeleccionados = [
+      data.cotizacion_primaria_id,
+      ...(data.cotizacion_secundaria_id ? [data.cotizacion_secundaria_id] : []),
+    ];
 
-    const slugNuevoEstado =
-      data.preferencia === 'OPCION_PRIMARIA'
-        ? 'opcion_primaria'
-        : 'opcion_secundaria';
-
-    const [estadoNuevoCotizacion, estadoSolicitudPendiente] = await Promise.all(
-      [
-        this.prisma.estado_cotizacion.findUnique({
-          where: { slug: slugNuevoEstado },
-        }),
-        this.prisma.estado_solicitud.findUnique({
-          where: { slug: 'pendiente' },
-        }),
-      ],
+    const cotizacionesSeleccionadas = solicitud.cotizacion.filter((cotizacion) =>
+      idsSeleccionados.includes(cotizacion.id),
     );
 
-    if (!estadoNuevoCotizacion || !estadoSolicitudPendiente) {
+    if (cotizacionesSeleccionadas.length !== idsSeleccionados.length) {
+      throw new BadRequestException(
+        'Todas las cotizaciones seleccionadas deben pertenecer a la solicitud indicada',
+      );
+    }
+
+    const cotizacionesInvalidas = cotizacionesSeleccionadas.filter(
+      (cotizacion) =>
+        !ESTADOS_COTIZACION_SELECCIONABLE.includes(cotizacion.estado_cotizacion.slug),
+    );
+
+    if (cotizacionesInvalidas.length > 0) {
+      throw new BadRequestException(
+        `No se pueden seleccionar cotizaciones en estado ${cotizacionesInvalidas[0].estado_cotizacion.estado}`,
+      );
+    }
+
+    const cotizacionesNoSeleccionadas = solicitud.cotizacion.filter(
+      (cotizacion) => !idsSeleccionados.includes(cotizacion.id),
+    );
+
+    const cotizacionesDescartables = cotizacionesNoSeleccionadas.filter(
+      (cotizacion) => cotizacion.estado_cotizacion.slug !== 'cotizacion_anulada',
+    );
+
+    const cotizacionesAnuladasSinCambio = cotizacionesNoSeleccionadas.filter(
+      (cotizacion) => cotizacion.estado_cotizacion.slug === 'cotizacion_anulada',
+    );
+
+    const [
+      estadoOpcionPrimaria,
+      estadoOpcionSecundaria,
+      estadoCotizacionDescartada,
+      estadoSolicitudEnRevision,
+    ] = await Promise.all([
+        this.prisma.estado_cotizacion.findUnique({
+          where: { slug: 'opcion_primaria' },
+        }),
+        this.prisma.estado_cotizacion.findUnique({
+          where: { slug: 'opcion_secundaria' },
+        }),
+        this.prisma.estado_cotizacion.findUnique({
+          where: { slug: 'cotizacion_descartada' },
+        }),
+        this.prisma.estado_solicitud.findUnique({
+          where: { slug: 'en_revision' },
+        }),
+      ]);
+
+    if (
+      !estadoOpcionPrimaria ||
+      !estadoOpcionSecundaria ||
+      !estadoCotizacionDescartada ||
+      !estadoSolicitudEnRevision
+    ) {
       throw new NotFoundException(
         'Estados requeridos no encontrados en la base de datos',
       );
     }
 
-    // Actualizar estado de la cotización
-    await this.prisma.cotizacion.update({
-      where: { id: cotizacionId },
-      data: { estado_actual_id: estadoNuevoCotizacion.id },
-    });
+    const observacionBase = data.comentario?.trim()
+      ? ` ${data.comentario.trim()}`
+      : '';
 
-    await this.prisma.historial_estado_cotizacion.create({
-      data: {
-        cotizacion_id: cotizacionId,
-        estado_id: estadoNuevoCotizacion.id,
-        usuario_id: usuarioId,
-        observacion: `Seleccionada como ${data.preferencia} por el solicitante`,
-      },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.cotizacion.update({
+        where: { id: data.cotizacion_primaria_id },
+        data: { estado_actual_id: estadoOpcionPrimaria.id },
+      });
 
-    // Actualizar solicitud → PENDIENTE (pendiente de emisión de boleto)
-    await this.prisma.solicitud.update({
-      where: { id: cotizacion.solicitud_id },
-      data: { estado_actual_id: estadoSolicitudPendiente.id },
-    });
+      await tx.historial_estado_cotizacion.create({
+        data: {
+          cotizacion_id: data.cotizacion_primaria_id,
+          estado_id: estadoOpcionPrimaria.id,
+          usuario_id: usuarioId,
+          observacion: `Seleccionada como OPCION_PRIMARIA por el solicitante.${observacionBase}`.trim(),
+        },
+      });
 
-    await this.prisma.historial_estado_solicitud.create({
-      data: {
-        solicitud_id: cotizacion.solicitud_id,
-        estado_id: estadoSolicitudPendiente.id,
-        usuario_id: usuarioId,
-        observacion: `Cotización #${cotizacionId} seleccionada como ${data.preferencia}. Pendiente de emisión de boleto`,
-      },
+      if (data.cotizacion_secundaria_id) {
+        await tx.cotizacion.update({
+          where: { id: data.cotizacion_secundaria_id },
+          data: { estado_actual_id: estadoOpcionSecundaria.id },
+        });
+
+        await tx.historial_estado_cotizacion.create({
+          data: {
+            cotizacion_id: data.cotizacion_secundaria_id,
+            estado_id: estadoOpcionSecundaria.id,
+            usuario_id: usuarioId,
+            observacion: `Seleccionada como OPCION_SECUNDARIA por el solicitante.${observacionBase}`.trim(),
+          },
+        });
+      }
+
+      if (cotizacionesDescartables.length > 0) {
+        await tx.cotizacion.updateMany({
+          where: {
+            id: {
+              in: cotizacionesDescartables.map((cotizacion) => cotizacion.id),
+            },
+          },
+          data: { estado_actual_id: estadoCotizacionDescartada.id },
+        });
+
+        await tx.historial_estado_cotizacion.createMany({
+          data: cotizacionesDescartables.map((cotizacion) => ({
+            cotizacion_id: cotizacion.id,
+            estado_id: estadoCotizacionDescartada.id,
+            usuario_id: usuarioId,
+            observacion: `Cotización descartada por selección de opciones del solicitante.${observacionBase}`.trim(),
+          })),
+        });
+      }
+
+      await tx.solicitud.update({
+        where: { id: solicitudId },
+        data: { estado_actual_id: estadoSolicitudEnRevision.id },
+      });
+
+      await tx.historial_estado_solicitud.create({
+        data: {
+          solicitud_id: solicitudId,
+          estado_id: estadoSolicitudEnRevision.id,
+          usuario_id: usuarioId,
+          observacion: `Cotizaciones seleccionadas por el solicitante. Primaria #${data.cotizacion_primaria_id}${data.cotizacion_secundaria_id ? `, secundaria #${data.cotizacion_secundaria_id}` : ''}.${observacionBase}`.trim(),
+        },
+      });
     });
 
     return {
       success: true,
-      message: `Cotización seleccionada como ${data.preferencia}`,
+      message: 'Cotizaciones seleccionadas correctamente',
       data: {
         cotizacion: {
-          id: cotizacionId,
-          estado: estadoNuevoCotizacion.estado,
+          seleccion: {
+            primaria: {
+              id: data.cotizacion_primaria_id,
+              estado: estadoOpcionPrimaria.estado,
+              sub_estado: estadoSolicitudEnRevision.estado,
+            },
+            secundaria: data.cotizacion_secundaria_id
+              ? {
+                  id: data.cotizacion_secundaria_id,
+                  estado: estadoOpcionSecundaria.estado,
+                  sub_estado: estadoSolicitudEnRevision.estado,
+                }
+              : null,
+          },
+          descartadas: cotizacionesDescartables.map((cotizacion) => ({
+            id: cotizacion.id,
+            estado: estadoCotizacionDescartada.estado,
+          })),
+          anuladas_sin_cambio: cotizacionesAnuladasSinCambio.map((cotizacion) => ({
+            id: cotizacion.id,
+            estado: cotizacion.estado_cotizacion.estado,
+          })),
         },
       },
       event: {
-        type: `COTIZACION_${data.preferencia}`,
+        type: 'COTIZACIONES_SELECCIONADAS',
         affected_entities: [
           {
             entity: 'solicitud',
-            id: cotizacion.solicitud_id,
-            new_state: 'PENDIENTE',
+            id: solicitudId,
+            new_state: estadoSolicitudEnRevision.estado,
           },
+          ...cotizacionesDescartables.map((cotizacion) => ({
+            entity: 'cotizacion',
+            id: cotizacion.id,
+            new_state: estadoCotizacionDescartada.estado,
+          })),
         ],
       },
     };

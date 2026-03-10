@@ -1,3 +1,14 @@
+// PENDIENTE
+// -- volver a probar endpoint
+// -- validar uso de los campos nuevos de auditoria (created_at, updated_at, closed_at disabled_at)
+
+
+
+
+
+
+
+
 
 //// Archivo original (antes de la edición):
 // import { Controller } from '@nestjs/common';
@@ -52,14 +63,22 @@
       ➤ Obtener solicitud específica por ID
       ➤ Incluye: usuario, estado, cotizaciones, boletos, historial completo
 
+    7️⃣  DELETE /solicitud/:id
+      ➤ Eliminar físicamente una solicitud y todas sus dependencias
+      ➤ Body: { confirmacion: "ELIMINAR", motivo?: string }
+      ➤ Evento: SOLICITUD_ELIMINADA_COMPLETAMENTE
+
 ═══════════════════════════════════════════════════════════════════════════
 */
 
-import { Body, Controller, Get, Post, Param, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Post, Param, Query } from '@nestjs/common'
 import { SolicitudService } from './solicitud.service'
 import { CrearSolicitudDto } from './dto/crear-solicitud.dto'
+import { EliminarSolicitudDto } from './dto/eliminar-solicitud.dto'
+import { EliminarTodasSolicitudesDto } from './dto/eliminar-todas-solicitudes.dto'
 import { IniciarRevisionDto } from './dto/iniciar-revision.dto'
 import { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto'
+//import { audit } from 'rxjs'
 
 @Controller('solicitud') 
 export class SolicitudController {
@@ -96,40 +115,41 @@ export class SolicitudController {
       "tipo_de_vuelo": "IDA_Y_VUELTA",
       "ruta": {
         "origen": "Bogotá",
-        "destino": "Medellín"
+        "destino": "Medellín",
+        "preferencia_aerolinea": "LATAM"
       },
       "fechas": {
         "ida": "2026-03-10",  
         "vuelta": "2026-03-20"
       }
     }
-
+  - nota: preferencia_aerolinea es un campo opcional.
   RESPUSTA:
-  {
+ {
     "success": true,
     "message": "Solicitud creada correctamente",
     "data": {
         "solicitud": {
-            "id": 5,
-            "radicado": "EMP001-5",
+            "id": 6,
+            "radicado": "EMP001-6",
             "estado": "PENDIENTE",
             "tipo_de_vuelo": "IDA_Y_VUELTA",
             "ruta": {
                 "origen": "Bogotá",
                 "destino": "Medellín",
-                "preferencia_aerolinea": null
+                "preferencia_aerolinea": "LATAM"
             },
             "fechas": {
                 "ida": "2026-03-10",
                 "vuelta": "2026-03-20"
             },
-            "created_at": "2026-03-05T21:15:31.000Z"
+            "created_at": "2026-03-10T01:04:47.000Z"
         }
     },
     "event": {
         "type": "SOLICITUD_CREADA"
     }
-  }
+}
   */
 
   // 2️⃣ Admin abre solicitud para revisión
@@ -146,7 +166,7 @@ export class SolicitudController {
    /*
  DESCRIPCION: Cuando un administrador quiere iniciar la revisión de una solicitud, envía un POST a /solicitud/:id/iniciar-revision, donde :id es el ID de la solicitud que quiere revisar. El controlador captura ese ID a través del decorador @Param('id') y también puede recibir un cuerpo opcional con una observación. Luego, llama al método iniciarRevision del servicio, pasando el ID de la solicitud, el usuarioId del admin (que por ahora es fijo) y la observación. El servicio se encarga de cambiar el estado de la solicitud a EN_REVISION y registrar el evento correspondiente.
  ENDPOINT: POST /solicitud/:id/iniciar-revision
-            Ejemplo: POST /solicitud/2/iniciar-revision
+            Ejemplo: POST /solicitud/6/iniciar-revision
  BODY:  {
   "observacion": "Revisión iniciada por el admin _S05"
  }
@@ -155,7 +175,7 @@ export class SolicitudController {
     "success": true,
     "message": "Solicitud en revisión",
     "data": {
-        "solicitud_id": 4,
+        "solicitud_id": 6,
         "estado": "EN REVISION"
     },
     "event": {
@@ -163,15 +183,6 @@ export class SolicitudController {
     }
 }
 */
-
-
-
-
-
-
-
-
-
 
   // 3️⃣ Rechazar solicitud (comentario obligatorio)
   // POST /solicitud/:id/rechazar
@@ -185,24 +196,83 @@ export class SolicitudController {
     return this.solicitudService.rechazarSolicitud(Number(id), usuarioId, data)
   }
 
+  /*
+  DESCRIPCION: Cuando se rechaza una solicitud, el cliente envía un POST a /solicitud/:id/rechazar con un comentario obligatorio que explica el motivo del rechazo. El controlador captura el ID de la solicitud a través del parámetro de ruta y el comentario a través del cuerpo de la petición. Luego, llama al método rechazarSolicitud del servicio, que se encarga de cambiar el estado de la solicitud a RECHAZADA, registrar el comentario y disparar el evento correspondiente.
+  ENDPOINT: POST /solicitud/:id/rechazar
+            Ejemplo: POST /solicitud/2/rechazar
+  BODY:
+  {
+    "comentario": "El valor total no coincide con lo acordado, por favor corregir." 
+  }
+  RESPUESTA:
+  {
+      "success": true,
+      "message": "Solicitud rechazada correctamente",
+      "data": {
+          "solicitud_id": 4,
+          "estado": "RECHAZADA",
+          "comentario": "El valor total no coincide con lo acordado, por favor corregir."
+      },
+      "event": {
+          "type": "SOLICITUD_RECHAZADA"
+      }
+  }
+
+  */
+
+
+
   // ========== ENDPOINTS DE CONSULTA ==========
 
   // GET /solicitud/todas
   @Get('todas')
   async obtenerTodas() {
+    // Sin parámetros → usa los defaults: page=1, limit=10, orden='desc'
     return this.solicitudService.obtenerSolicitudes()
   }
+  /*
+  DESCRIPCION: Este endpoint es un alias de GET /solicitud, es decir, hace exactamente lo mismo que GET /solicitud sin parámetros. Está pensado para facilitar la consulta de todas las solicitudes sin tener que usar query params. El controlador simplemente llama al método obtenerSolicitudes del servicio sin pasarle ningún parámetro, lo que hará que el servicio use los valores por defecto (página 1, 10 resultados por página, orden descendente).
+  ENDPOINT: GET /solicitud/todas
+*/
+
+
+
 
   // GET /solicitud
   // Por query string → GET /solicitud?id=5 (se considera una ruta estática)
+  // Soporta query params opcionales:
+  //   ?id=5           → busca una solicitud específica por ID
+  //   ?page=2         → página 2 (default: 1)
+  //   ?limit=5        → 5 resultados por página (default: 10)
+  //   ?orden=asc      → más antiguas primero (default: 'desc' = más recientes primero)
+  //
+  // Ejemplos:
+  //   GET /solicitud                      → página 1, 10 por página, más recientes primero
+  //   GET /solicitud?page=2&limit=5       → página 2, 5 por página
+  //   GET /solicitud?page=1&limit=3&orden=asc → 3 por página, más antiguas primero
   @Get()
-  async obtenerSolicitudes(@Query('id') id?: string) {
+  async obtenerSolicitudes(
+    @Query('id') id?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('orden') orden?: string,
+  ) {
+    // Si llegó un ?id=X, buscamos esa solicitud específica (ignora paginación)
     if (id) {
       return this.solicitudService.buscarPorId(id)
     }
-    return this.solicitudService.obtenerSolicitudes()
+
+    // Convertimos los query params de string a número/tipo correcto.
+    // Los query params SIEMPRE llegan como string desde la URL,
+    // por eso usamos parseInt() y validamos que el valor sea válido.
+    const pageNum  = parseInt(page  ?? '1',  10) // default: página 1
+    const limitNum = parseInt(limit ?? '10', 10) // default: limite 10 por página
+
+    // Validamos que 'orden' sea exactamente 'asc' o 'desc', cualquier otro valor → 'desc'
+    const ordenVal: 'asc' | 'desc' = orden === 'asc' ? 'asc' : 'desc'
+
+    return this.solicitudService.obtenerSolicitudes(pageNum, limitNum, ordenVal)
   }
-  //@Get() sin argumento responde a la raíz del controlador, es decir /solicitud (luego, con o sin query)"
 
 
   // RUTA DINÁMICA GET /solicitud/:id
@@ -212,7 +282,95 @@ export class SolicitudController {
   async obtenerPorId(@Param('id') id: string) {
     return this.solicitudService.buscarPorId(id)
   }
+
+//////////////// ESTE ENDPOINT AUNQUE EXITE NO SE EXPONDRA EN LA DOCUMENTACION PUBLICA /////////////////
+
+  // 8️⃣ Eliminar físicamente todas las solicitudes con todas sus dependencias
+  // DELETE /solicitud/eliminar-todas
+  @Delete('eliminar-todas')
+  async eliminarTodasLasSolicitudes(
+    @Body() data: EliminarTodasSolicitudesDto,
+  ) {
+    return this.solicitudService.eliminarTodasLasSolicitudes(data)
+  }
+/*
+DESCRIPCION: Este endpoint es para eliminar físicamente todas las solicitudes de viaje y todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR_TODAS") para evitar borrados accidentales. El controlador recibe los datos de confirmación en el cuerpo de la petición y luego llama al método eliminarTodasLasSolicitudes del servicio, que se encarga de realizar la eliminación física en la base de datos. Si la eliminación es exitosa, se dispara un evento SOLICITUDES_ELIMINADAS_COMPLETAMENTE para notificar a otros sistemas o servicios interesados.
+ENDPOINT: DELETE /solicitud/eliminar-todas
+  Ejemplo: DELETE /solicitud/eliminar-todas
+BODY:
+  {
+    "confirmacion": "ELIMINAR_TODAS",
+    "motivo": "Limpieza de datos de prueba después del desarrollo.",
+    "reiniciar_indices": true
+  }
+RESPUESTA:
+
+*/
+
+//////////////// ESTE ENDPOINT AUNQUE EXITE NO SE EXPONDRA EN LA DOCUMENTACION PUBLICA /////////////////s
+  // 7️⃣ Eliminar físicamente una solicitud con todas sus dependencias
+  // DELETE /solicitud/:id
+  @Delete(':id')
+  async eliminarSolicitudCompletamente(
+    @Param('id') id: string,
+    @Body() data: EliminarSolicitudDto,
+  ) {
+    return this.solicitudService.eliminarSolicitudCompletamente(Number(id), data)
+  }
 }
+/*
+DESCRIPCION: Este endpoint es para eliminar físicamente una solicitud de viaje y todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR") para evitar borrados accidentales. El controlador recibe el ID de la solicitud a eliminar a través del parámetro de ruta y los datos de confirmación en el cuerpo de la petición. Luego, llama al método eliminarSolicitudCompletamente del servicio, que se encarga de realizar la eliminación física en la base de datos. Si la eliminación es exitosa, se dispara un evento SOLICITUD_ELIMINADA_COMPLETAMENTE para notificar a otros sistemas o servicios interesados.
+ENDPOINT: DELETE /solicitud/:id
+Ejemplo: DELETE /solicitud/5
+BODY:
+  {
+    "confirmacion": "ELIMINAR",
+    "motivo": "Solicitud duplicada, se creó por error."
+  }
+RESPUESTA:
+
+
+
+
+
+
+
+
+
+
+/////////////////////////////////////////////////////////////////////
+/*
+DESCRIPCION: Esta ruto para eliminar una solicitud es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR") para evitar borrados accidentales. El controlador recibe el ID de la solicitud a eliminar a través del parámetro de ruta y los datos de confirmación en el cuerpo de la petición. Luego, llama al método eliminarSolicitudCompletamente del servicio, que se encarga de eliminar físicamente la solicitud y todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Si la eliminación es exitosa, se dispara un evento SOLICITUD_ELIMINADA_COMPLETAMENTE para notificar a otros sistemas o servicios interesados.
+ENDPOINT: DELETE /solicitud/:id
+Ejemplo: DELETE /solicitud/5
+BODY:
+  {
+    "confirmacion": "ELIMINAR",
+    "motivo": "Solicitud duplicada, se creó por error."
+  }
+RESPUESTA:
+  {
+      "success": true,
+      "message": "Solicitud eliminada completamente de la base de datos",
+      "data": {
+          "solicitud_id": 6,
+          "radicado": "EMP001-6",
+          "motivo": "Solicitud duplicada, se creó por error.",
+          "eliminados": {
+              "historial_boletos": 0,
+              "boletos": 0,
+              "historial_cotizaciones": 0,
+              "segmentos_cotizacion": 0,
+              "cotizaciones": 0,
+              "detalle_vuelo_solicitud": 1,
+              "historial_solicitud": 1,
+              "solicitudes": 1
+          }
+      },
+      "event": {
+          "type": "SOLICITUD_ELIMINADA_COMPLETAMENTE"
+      }
+  }
 /*
 DESCRIPCION GENERAL DEL CONTROLADOR:
 El controlador de solicitud es el encargado de manejar las rutas HTTP relacionadas con las solicitudes de viaje. Define los endpoints para crear una solicitud, iniciar su revisión, rechazarla y obtener solicitudes. Utiliza decoradores como @Controller para definir la ruta base, @Post y @Get para definir los métodos HTTP y las rutas específicas, y @Body, @Param y @Query para extraer datos de la petición. El controlador delega toda la lógica de negocio al servicio de solicitud, que se encarga de interactuar con la base de datos y procesar la información. El controlador simplemente recibe las peticiones, extrae los datos necesarios y llama al servicio para obtener una respuesta que luego retorna al cliente.
