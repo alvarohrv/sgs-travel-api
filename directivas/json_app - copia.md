@@ -226,7 +226,7 @@ nota: Si el admin carga una cotización, hay una acción humana → debe existir
   "aerolinea": "LATAM",
   "valor_total": 850000,
   "moneda": "COP",
-  "cobertura": "COMPLETA",
+  "cobertura": "IDA_Y_VUELTA",
   "detalle": {
     "ida": {
       "fecha": "2026-03-10",
@@ -256,7 +256,7 @@ nota: el admin podria cotizar solo IDA primero
       "aerolinea": "LATAM",
       "valor_total": 850000,
       "moneda": "COP",
-      "cobertura": "COMPLETA",
+      "cobertura": "IDA_Y_VUELTA",
       "created_at": "2026-02-26T15:10:00Z"
     }
   },
@@ -338,7 +338,7 @@ URL:  POST /solicitud/25/cotizacion  (La diferencia esta en el BODY)
   "aerolinea": "LATAM",
   "valor_total": 790000,
   "moneda": "COP",
-  "cobertura": "COMPLETA",
+  "cobertura": "IDA_Y_VUELTA",
   "detalle": {
     "ida": {
       "fecha": "2026-03-10",
@@ -372,7 +372,7 @@ Registra historial
       "aerolinea": "LATAM",
       "valor_total": 790000,
       "moneda": "COP",
-      "cobertura": "COMPLETA",
+      "cobertura": "IDA_Y_VUELTA",
       "created_at": "2026-02-26T16:20:00Z"
     }
   },
@@ -576,31 +576,88 @@ Reglas:
 URL:  POST /cotizacion/75/boleto
 ```json
 {
-  "aerolinea": "Latam",
-  "codigo_reserva": "ZXCV12",
-  "numero_tiquete": "987654321",
-  "url_archivo_adjunto": "https://dominio.com/boleto/900.pdf",
-  "fecha_compra": "2026-02-26"
+  "boleto": {
+    "reemplaza_boleto_id": null,
+    "cotizacion_id": 75,
+    "estado_actual_id": 1,
+    "cobertura": "IDA_Y_VUELTA",
+    "valor_final": 850000.00,
+    "segmentos": [
+      {
+        "tipo_segmento": "IDA",
+        "estado": "EMITIDO",
+        "aerolinea": "Latam",
+        "codigo_reserva": "ZXCV12",
+        "numero_tiquete": "987654321",
+        "numero_vuelo": "LA123",
+        "fecha_vuelo": "2026-03-10 08:00:00",
+        "fecha_compra": "2026-02-26",
+        "clase_tarifaria": "Económica",
+        "politica_equipaje": "1 maleta 23kg",
+        "url_archivo_adjunto": "https://dominio.com/boleto/900.pdf"
+      },
+      {
+        "tipo_segmento": "VUELTA",
+        "estado": "EMITIDO",
+        "aerolinea": "Latam",
+        "codigo_reserva": "ZXCV12",
+        "numero_tiquete": "987654321",
+        "numero_vuelo": "LA456",
+        "fecha_vuelo": "2026-03-15 18:00:00",
+        "fecha_compra": "2026-02-26",
+        "clase_tarifaria": "Económica",
+        "politica_equipaje": "1 maleta 23kg",
+        "url_archivo_adjunto": "https://dominio.com/boleto/900.pdf"
+      }
+    ]
+  }
 }
 ```
 
 * JSON de respuesta (response)
 ```json
-{
+ {
   "success": true,
   "message": "Boleto emitido correctamente",
   "data": {
     "boleto": {
       "id": 900,
+      "cotizacion_id": 75,    
       "estado": "BOLETO EMITIDO",
-      "cotizacion_id": 75,
       "reemplaza_boleto_id": null,
-      "aerolinea": "Latam",
-      "codigo_reserva": "ZXCV12",
-      "numero_tiquete": "987654321",
-      "url_archivo_adjunto": "https://dominio.com/boleto/900.pdf",
-      "fecha_compra": "2026-02-26",
-      "created_at": "2026-02-26T18:00:00Z"
+      "cobertura": "IDA_Y_VUELTA",
+      "valor_final": 850000,
+      "created_at": "2026-02-26T18:00:00Z",
+      "segmentos": [
+        {
+          "id": 1001,
+          "tipo_segmento": "IDA",
+          "estado": "EMITIDO",
+          "aerolinea": "Latam",
+          "codigo_reserva": "ZXCV12",
+          "numero_tiquete": "987654321",
+          "numero_vuelo": "LA123",
+          "fecha_vuelo": "2026-03-10T08:00:00Z",
+          "fecha_compra": "2026-02-26",
+          "clase_tarifaria": "Económica",
+          "politica_equipaje": "1 maleta 23kg",
+          "url_archivo_adjunto": "https://dominio.com/boleto/900.pdf"
+        },
+        {
+          "id": 1002,
+          "tipo_segmento": "VUELTA",
+          "estado": "EMITIDO",
+          "aerolinea": "Latam",
+          "codigo_reserva": "ZXCV12",
+          "numero_tiquete": "987654321",
+          "numero_vuelo": "LA456",
+          "fecha_vuelo": "2026-03-15T18:00:00Z",
+          "fecha_compra": "2026-02-26",
+          "clase_tarifaria": "Económica",
+          "politica_equipaje": "1 maleta 23kg",
+          "url_archivo_adjunto": "https://dominio.com/boleto/900.pdf"
+        }
+      ]
     }
   },
   "event": {
@@ -634,6 +691,7 @@ URL:  POST /cotizacion/75/boleto
 
 ## 🔁 13. Boleto reemplaza otro  (po ejemplo por novedad)
 Reglas:
+Esto ocurre si la NOVEDAD afecta el valor de la entidad 'boleto'
 Boleto anterior → `BOLETO_ANULADO`
 Boleto nuevo → `BOLETO_EMITIDO`
 El boleto nuevo debe referenciar al boleto reemplazado
@@ -644,37 +702,99 @@ nota: estidad genera creación de recurso con referencia opcional (pero si es un
 URL:  POST /cotizacion/75/boleto   (La diferencia esta en el BODY)
 ```json
 {
-  "aerolinea": "Avianca",
-  "codigo_reserva": "ABC123",
-  "numero_tiquete": "1234567890",
-  "url_archivo_adjunto": "https://dominio.com/boleto/950.pdf",
-  "fecha_compra": "2026-02-26",
-  "reemplaza_boleto_id": 900,
-  "comentario": "Se reemplaza por cambio de tarifa."
+  "boleto": {
+    "reemplaza_boleto_id": 900,
+    "cotizacion_id": 75,
+    "estado_actual_id": 1,
+    "cobertura": "IDA_Y_VUELTA",
+    "valor_final": 840000.00,
+    "segmentos": [
+      {
+        "tipo_segmento": "IDA",
+        "estado": "EMITIDO",
+        "aerolinea": "Avianca",
+        "codigo_reserva": "HJKK12",
+        "numero_tiquete": "123456789",
+        "numero_vuelo": "AV124",
+        "fecha_vuelo": "2026-03-10 09:00:00",
+        "fecha_compra": "2026-02-26",
+        "clase_tarifaria": "Económica",
+        "politica_equipaje": "1 maleta 26kg",
+        "url_archivo_adjunto": "https://dominio.com/boleto/4265.pdf"
+      },
+      {
+        "tipo_segmento": "VUELTA",
+        "estado": "EMITIDO",
+        "aerolinea": "Avianca",
+        "codigo_reserva": "HJKK12",
+        "numero_tiquete": "123456789",
+        "numero_vuelo": "AV457",
+        "fecha_vuelo": "2026-03-15 18:00:00",
+        "fecha_compra": "2026-02-26",
+        "clase_tarifaria": "Económica",
+        "politica_equipaje": "1 maleta 26kg",
+        "url_archivo_adjunto": "https://dominio.com/boleto/4265.pdf"
+      }
+    ]
+  }
 }
 ```
 El Boleto requiere de la data nuevamente porque es documento legal emitido contractual y por tanto no editable. Aunque de momento permite solo adjuntar el PDF.
 
 * JSON de respuesta (response)
 ```json
-{
+ {
   "success": true,
-  "message": "Boleto reemplazado correctamente",
+  "message": "Boleto remplazado correctamente",
   "data": {
-    "boleto_nuevo": {
-      "id": 950,
+    "boleto": {
+      "id": 900,
+      "cotizacion_id": 75,    
       "estado": "BOLETO EMITIDO",
-      "reemplaza_boleto_id": 900,
-      "aerolinea": "Avianca",
-      "codigo_reserva": "ABC123",
-      "numero_tiquete": "1234567890",
-      "url_archivo_adjunto": "https://dominio.com/boleto/950.pdf",
-      "fecha_compra": "2026-02-26"
+      "reemplaza_boleto_id": null,
+      "cobertura": "IDA_Y_VUELTA",
+      "valor_final": 850000,
+      "created_at": "2026-02-26T18:00:00Z",
+      "segmentos": [
+        {
+          "id": 1001,
+          "tipo_segmento": "IDA",
+          "estado": "EMITIDO",
+          "aerolinea": "Avianca",
+          "codigo_reserva": "HJKK12",
+          "numero_tiquete": "123456789",
+          "numero_vuelo": "AV124",
+          "fecha_vuelo": "2026-03-10T09:00:00Z",
+          "fecha_compra": "2026-02-26",
+          "clase_tarifaria": "Económica",
+          "politica_equipaje": "1 maleta 26kg",
+          "url_archivo_adjunto": "https://dominio.com/boleto/4265.pdf"
+        },
+        {
+          "id": 1002,
+          "tipo_segmento": "VUELTA",
+          "estado": "EMITIDO",
+          "aerolinea": "Avianca",
+          "codigo_reserva": "HJKK12",
+          "numero_tiquete": "123456789",
+          "numero_vuelo": "AV457",
+          "fecha_vuelo": "2026-03-15T18:00:00Z",
+          "fecha_compra": "2026-02-26",
+          "clase_tarifaria": "Económica",
+          "politica_equipaje": "1 maleta 26kg",
+          "url_archivo_adjunto": "https://dominio.com/boleto/4265.pdf"
+        }
+      ]
     }
   },
   "event": {
     "type": "BOLETO_REEMPLAZADO",
     "affected_entities": [
+      {
+        "entity": "solicitud",
+        "id": 25,
+        "new_state": "BOLETO CARGADO"
+      },
       {
         "entity": "boleto",
         "id": 900,
@@ -684,16 +804,10 @@ El Boleto requiere de la data nuevamente porque es documento legal emitido contr
         "entity": "boleto",
         "id": 950,
         "new_state": "BOLETO_EMITIDO"
-      },
-      {
-        "entity": "solicitud",
-        "id": 25,
-        "new_state": "BOLETO_CARGADO"
       }
     ]
   }
 }
-
 ```
 
 ## 🟠 14. Generar Novedad en Boleto (requiere comentario obligatorio)
@@ -740,7 +854,7 @@ Se obtiene del usuario autenticado (token JWT o sesión).
       },
       "entidad_tipo": "boleto",
       "entidad_id": 950,
-      "contenido": "El pasajero solicita cambio de fecha.",
+      "contenido": "El pasajero solicita cambio de fecha, es posible se modifique los costos.",
       "created_at": "2026-02-26T19:10:00Z"
     }
   },
@@ -777,7 +891,7 @@ Opcional (comentario del admin):
 
 ```json
 {
-  "comentario": "Se revisa la solicitud y no requiere reemisión."
+  "comentario": "No requiere reemisión por ausencia de cargos adicionales. Novedad gestionada mediante actualización de itinerario."
 }
 ```
 * JSON de respuesta (response)
@@ -802,6 +916,51 @@ Opcional (comentario del admin):
     ]
   }
 }
+```
+
+## 🔁 15. CAMBIO DE ESTADO DE DETALLES DEL VUELO
+Los estados de los segmentos del vuelo pueden cambiar (ej: por novedad, cambio de aerolínea, cambio de fecha, etc) sin que esto implique necesariamente un cambio de estado del boleto completo. Esto permite reflejar cambios específicos en los detalles del vuelo sin afectar el estado general del boleto.
+
+* JSON de solicitud (request)
+URL: PATCH /boleto/segmento/:segmentoId/estado
+POST 
+```json
+ {
+    "nuevo_estado": "REPROGRAMADO",
+    "motivo": "informo cambio de fecha en el regreso por motivos de clima.",
+    "usuario_id": 1
+  }
+```
+* JSON de respuesta (response)
+```json
+{
+    "success": true,
+    "message": "Estado del segmento actualizado correctamente",
+    "data": {
+      "segmento_actualizado": {
+        "id": 1002,
+        "boleto_id": 900,
+        "tipo_segmento": "VUELTA",
+        "estado": "REPROGRAMADO",
+        "aerolinea": "Avianca",
+        "numero_vuelo": "AV457",
+        "fecha_vuelo": "2026-03-16T18:00:00Z", 
+        "descripcion": "informo cambio de fecha en el regreso por motivos de clima.",
+        "actualizado_por": 1
+      }
+    },
+    "event": {
+      "type": "SEGMENTO_ESTADO_ACTUALIZADO",
+      "affected_entities": [
+        {
+          "entity": "segmento_boleto",
+          "id": 1002,
+          "new_state": "REPROGRAMADO",
+          "details": "Cambio operativo por condiciones climáticas"
+        }
+      ]
+    }
+  }
 ```
 
 ## ✅ 16. Solicitante conforme
@@ -847,7 +1006,7 @@ Opcional (comentario del solicitante):
       {
         "entity": "solicitud",
         "id": 25,
-        "new_state": "CERRADA"
+        "new_state": "VIAJE PROGRAMADO"
       }
     ]
   }

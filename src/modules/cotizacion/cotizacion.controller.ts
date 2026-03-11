@@ -76,13 +76,14 @@ export class CotizacionController {
     const usuarioId = 1 // Temporal: usuario administrador hardcoded
     return this.cotizacionService.crearCotizacion(Number(solicitudId), usuarioId, data)
   }
+
   /*
   DESCRIPCIÓN: Admin carga una nueva cotización para una solicitud que está en revisión o ya con cotizacion cargada. Si se proporciona un cotizacion_anterior_id, la nueva cotización reemplaza a la anterior y esta última queda anulada. La solicitud pasa a estado "COTIZACION CARGADA" y queda pendiente de revisión por parte del empleado.
 
   Nota: La cotizacion es flexible en cuanto a su detalle en cuanto a fechas, vuelos, cobertura, etc Sera el admin quien puede 
 
   ENDPOINT: POST /solicitud/:solicitudId/cotizacion
-              Ej: http://localhost:3000/solicitud/2/cotizacion
+              Ej: POST http://localhost:3000/solicitud/2/cotizacion
   BODY (nueva cotización):
   {
     "cotizacion_anterior_id": null,
@@ -93,7 +94,8 @@ export class CotizacionController {
     "detalle": {
       "ida": {
         "fecha": "2026-05-02",
-        "vuelo": "WA123"
+        "vuelo": "WA123",
+        "clase_tarifaria": "ECONOMICA"
       },
       "vuelta": {
         "fecha": "2026-03-15",
@@ -102,54 +104,36 @@ export class CotizacionController {
     }
   }
 
-
-
   RESPUESTA (nueva cotización)::
   {
-      "success": true,
-      "message": "Cotización creada correctamente",
-      "data": {
-          "cotizacion": {
-              "id": 4,
-              "solicitud_id": 2,
-              "cotizacion_anterior_id": null,
-              "estado": "COTIZACION NUEVA",
-              "aerolinea": "Wingo",
-              "valor_total": "850000",
-              "moneda": "COP",
-              "cobertura": "IDA_Y_VUELTA",
-              "detalle": {
-                  "ida": {
-                      "fecha": "2026-05-02",
-                      "vuelo": "WA123"
-                  },
-                  "vuelta": {
-                      "fecha": "2026-03-15",
-                      "vuelo": "WA456"
-                  }
-              },
-              "created_at": "2026-03-10T03:54:30.000Z"
-          }
-      },
-      "event": {
-          "type": "COTIZACION_CREADA",
-          "affected_entities": [
-              {
-                  "entity": "solicitud",
-                  "id": 2,
-                  "new_state": "COTIZACION CARGADA"
-              }
-          ]
-      }
-  }
-
-
-    ////////////////////
-
-      BODY (remplazo cotización):
+    "success": true,
+    "message": "Solicitud creada correctamente",
+    "data": {
+        "solicitud": {
+            "id": 6,
+            "radicado": "EMP002-6",
+            "estado": "PENDIENTE",
+            "tipo_de_vuelo": "IDA_Y_VUELTA",
+            "ruta": {
+                "origen": "Bogotá",
+                "destino": "Medellín",
+                "preferencia_aerolinea": "LATAM"
+            },
+            "fechas": {
+                "ida": "2026-03-10",
+                "vuelta": "2026-03-20"
+            },
+            "created_at": "2026-03-11T03:48:13.000Z"
+        }
+    },
+    "event": {
+        "type": "SOLICITUD_CREADA"
+    }
+}
 
 
 */
+  //// Se recurre a un "Anidamiento explícito" 
   // 1️⃣.2 Admin modifica cotización.
   //nota: por logica de negocio no se permite modificaciones parciales o totales sobre una cotización ya creada, si el admin quiere modificar algo de la cotización debe crear una nueva cotización. 
   
@@ -241,7 +225,7 @@ export class CotizacionController {
 
   */
 
-
+  ////// "Aplanamiento de Rutas" ////
   // 2️⃣ Empleado rechaza cotización (comentario obligatorio)
   // Rechazo: Es una decisión subjetiva del usuario.
   // POST /cotizacion/:id/rechazar

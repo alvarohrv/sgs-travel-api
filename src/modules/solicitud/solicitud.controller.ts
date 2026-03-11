@@ -110,6 +110,7 @@ export class SolicitudController {
   /*
   DESCRIPCION: Para crear una solicitud, el cliente envía un POST a /solicitud con un JSON que tiene el tipo de vuelo, la ruta (origen y destino) y las fechas. El controlador recibe esa información en el parámetro 'data' gracias al decorador @Body(). Luego, llama al método crearSolicitud del servicio, pasando esos datos junto con un usuarioId (que por ahora es fijo pero luego vendrá del token JWT). El servicio se encarga de toda la lógica para crear la solicitud en la base de datos y devuelve una respuesta estándar que el controlador retorna al cliente.
   ENDPOINT: POST /solicitud
+            Ejemplo: POST http://localhost:3000/solicitud
   BODY:
     {
       "tipo_de_vuelo": "IDA_Y_VUELTA",
@@ -166,8 +167,9 @@ export class SolicitudController {
    /*
  DESCRIPCION: Cuando un administrador quiere iniciar la revisión de una solicitud, envía un POST a /solicitud/:id/iniciar-revision, donde :id es el ID de la solicitud que quiere revisar. El controlador captura ese ID a través del decorador @Param('id') y también puede recibir un cuerpo opcional con una observación. Luego, llama al método iniciarRevision del servicio, pasando el ID de la solicitud, el usuarioId del admin (que por ahora es fijo) y la observación. El servicio se encarga de cambiar el estado de la solicitud a EN_REVISION y registrar el evento correspondiente.
  ENDPOINT: POST /solicitud/:id/iniciar-revision
-            Ejemplo: POST /solicitud/6/iniciar-revision
- BODY:  {
+            Ejemplo: POST http://localhost:3000/solicitud/6/iniciar-revision
+ BODY:
+ {
   "observacion": "Revisión iniciada por el admin _S05"
  }
  RESPUESTA:
@@ -199,27 +201,25 @@ export class SolicitudController {
   /*
   DESCRIPCION: Cuando se rechaza una solicitud, el cliente envía un POST a /solicitud/:id/rechazar con un comentario obligatorio que explica el motivo del rechazo. El controlador captura el ID de la solicitud a través del parámetro de ruta y el comentario a través del cuerpo de la petición. Luego, llama al método rechazarSolicitud del servicio, que se encarga de cambiar el estado de la solicitud a RECHAZADA, registrar el comentario y disparar el evento correspondiente.
   ENDPOINT: POST /solicitud/:id/rechazar
-            Ejemplo: POST /solicitud/2/rechazar
+            Ejemplo: POST http://localhost:3000/solicitud/1/rechazar
   BODY:
-  {
-    "comentario": "El valor total no coincide con lo acordado, por favor corregir." 
-  }
+    {
+      "comentario": "Solicitud no cumple con los requisitos mínimos para ser procesada. Por favor revise la información y genera una nueva solicitud." 
+    }
   RESPUESTA:
   {
       "success": true,
       "message": "Solicitud rechazada correctamente",
       "data": {
-          "solicitud_id": 4,
+          "solicitud_id": 1,
           "estado": "RECHAZADA",
-          "comentario": "El valor total no coincide con lo acordado, por favor corregir."
+          "comentario": "Solicitud no cumple con los requisitos mínimos para ser procesada. Por favor revise la información y genera una nueva solicitud."
       },
       "event": {
           "type": "SOLICITUD_RECHAZADA"
       }
   }
-
   */
-
 
 
   // ========== ENDPOINTS DE CONSULTA ==========
@@ -287,6 +287,7 @@ export class SolicitudController {
 
   // 8️⃣ Eliminar físicamente todas las solicitudes con todas sus dependencias
   // DELETE /solicitud/eliminar-todas
+
   @Delete('eliminar-todas')
   async eliminarTodasLasSolicitudes(
     @Body() data: EliminarTodasSolicitudesDto,
@@ -296,7 +297,7 @@ export class SolicitudController {
 /*
 DESCRIPCION: Este endpoint es para eliminar físicamente todas las solicitudes de viaje y todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR_TODAS") para evitar borrados accidentales. El controlador recibe los datos de confirmación en el cuerpo de la petición y luego llama al método eliminarTodasLasSolicitudes del servicio, que se encarga de realizar la eliminación física en la base de datos. Si la eliminación es exitosa, se dispara un evento SOLICITUDES_ELIMINADAS_COMPLETAMENTE para notificar a otros sistemas o servicios interesados.
 ENDPOINT: DELETE /solicitud/eliminar-todas
-  Ejemplo: DELETE /solicitud/eliminar-todas
+  Ejemplo: DELETE http://localhost:3000/solicitud/eliminar-todas
 BODY:
   {
     "confirmacion": "ELIMINAR_TODAS",
@@ -304,7 +305,6 @@ BODY:
     "reiniciar_indices": true
   }
 RESPUESTA:
-
 */
 
 //////////////// ESTE ENDPOINT AUNQUE EXITE NO SE EXPONDRA EN LA DOCUMENTACION PUBLICA /////////////////s

@@ -1,0 +1,48 @@
+-- AlterTable
+ALTER TABLE `boleto` ADD COLUMN `closed_at` TIMESTAMP(0) NULL,
+    ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+    ADD COLUMN `updated_at` TIMESTAMP(0) NULL;
+
+-- AlterTable
+ALTER TABLE `cotizacion` ADD COLUMN `closed_at` TIMESTAMP(0) NULL,
+    ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+    ADD COLUMN `updated_at` TIMESTAMP(0) NULL;
+
+-- AlterTable
+ALTER TABLE `detalle_vuelo_solicitud` ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0);
+
+-- AlterTable
+ALTER TABLE `estado_boleto` ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0);
+
+-- AlterTable
+ALTER TABLE `estado_cotizacion` ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0);
+
+-- AlterTable
+ALTER TABLE `estado_segmento_boleto` ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0);
+
+-- AlterTable
+ALTER TABLE `estado_solicitud` ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0);
+
+-- AlterTable
+ALTER TABLE `historial_estado_boleto` ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0);
+
+-- AlterTable
+ALTER TABLE `historial_estado_cotizacion` ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0);
+
+-- AlterTable
+ALTER TABLE `historial_estado_solicitud` ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0);
+
+-- AlterTable
+ALTER TABLE `segmento_boleto` ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0);
+
+-- AlterTable
+ALTER TABLE `segmento_cotizacion` ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0);
+
+-- AlterTable
+ALTER TABLE `solicitud` ADD COLUMN `closed_at` TIMESTAMP(0) NULL,
+    ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+    ADD COLUMN `updated_at` TIMESTAMP(0) NULL;
+
+-- AlterTable
+ALTER TABLE `usuario` ADD COLUMN `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+    ADD COLUMN `disabled_at` TIMESTAMP(0) NULL;
