@@ -12,6 +12,7 @@ import { RespuestaApiEstandar } from './interfaces/respuesta-api.interface'
 export class SolicitudService {
   private readonly tablasReiniciables = [
     'historial_estado_boleto',
+    'segmento_boleto',
     'historial_estado_cotizacion',
     'segmento_cotizacion',
     'boleto',
@@ -568,6 +569,16 @@ export class SolicitudService {
         })
       : { count: 0 }
 
+    const segmentosBoletosEliminados = boletoIds.length
+      ? await tx.segmento_boleto.deleteMany({
+          where: {
+            boleto_id: {
+              in: boletoIds,
+            }
+          }
+        })
+      : { count: 0 }
+
     if (boletoIds.length) {
       await tx.boleto.updateMany({
         where: {
@@ -656,6 +667,7 @@ export class SolicitudService {
 
     return {
       historial_boletos: historialBoletosEliminados.count,
+      segmentos_boleto: segmentosBoletosEliminados.count,
       boletos: boletosEliminados.count,
       historial_cotizaciones: historialCotizacionesEliminados.count,
       segmentos_cotizacion: segmentosEliminados.count,

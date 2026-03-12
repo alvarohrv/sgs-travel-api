@@ -10,95 +10,106 @@ import { ReemplazarBoletoDto } from './dto/reemplazar-boleto.dto';
 export class BoletoController {
   constructor(private readonly boletoService: BoletoService) {}
 
-    /*
+  /*
   DESCRIPCIÓN: Admin emite un boleto a partir de una cotización aprobada. El boleto queda en estado "EMITIDO". Si se proporciona un reemplaza_boleto_id, el nuevo boleto reemplaza al anterior y este último queda anulado. La solicitud asociada a la cotización pasa a estado "BOLETO EMITIDO".
   ENDPOINT POST /cotizacion/:cotizacionId/boleto
-              Ej: POST http://localhost:3000/cotizacion/1/boleto
-  BODY 
+              Ej: POST http://localhost:3000/cotizacion/7/boleto
+  BODY   ((((((((( ESTO CAMBO!!!!!!!!!!!!!!!! ))))))))
  {
   "reemplaza_boleto_id": null,
-  "cobertura": "IDA",
-  "aerolinea": "LATAM",
-  "codigo_reserva": "ZXCV12",
-  "numero_tiquete": "987654321", 
-  "url_archivo_adjunto": "https://dominio.com/boleto/900.pdf",
-  "valor_final": 850000,
+  "cobertura": "IDA_Y_VUELTA",   
+  "valor_final": 840000,
   "fecha_compra": "2026-02-26",
   "comentario": "",
   "segmentos": [
     {
       "tipo_segmento": "IDA",
-      "numero_vuelo": "LA123",
-      "fecha_vuelo": "2026-03-10",
+      "aerolinea": "Wingo",
+      "codigo_reserva": "ZXCV12",
+      "numero_tiquete": "987654321",
+      "numero_vuelo": "WA123",
+      "fecha_vuelo": "2026-02-02",
+      "fecha_compra": "2026-02-01",
       "clase_tarifaria": "Económica",
       "politica_equipaje": "1 maleta 23kg",
-      "comentario": ""
+      "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf"
     },
     {
       "tipo_segmento": "VUELTA",
-      "numero_vuelo": "LA456",
-      "fecha_vuelo": "2026-03-15",
+      "aerolinea": "Wingo",
+      "codigo_reserva": "ZXCV12",
+      "numero_tiquete": "987654321",
+      "numero_vuelo": "WA788",
+      "fecha_vuelo": "2026-03-20",
+      "fecha_compra": "2026-02-01",
       "clase_tarifaria": "Económica",
       "politica_equipaje": "1 maleta 23kg",
-      "comentario": ""
+      "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf"
     }
   ]
 }
   RESPUESTA
-
   {
-    "success": true,
-    "message": "Boleto emitido correctamente",
-    "data": {
-        "boleto": {
-            "id": 2,
-            "estado": "BOLETO EMITIDO",
-            "cotizacion_id": 1,
-            "reemplaza_boleto_id": null,
-            "cobertura": "IDA",
-            "aerolinea": "LATAM",
-            "codigo_reserva": "ZXCV12",
-            "numero_tiquete": "987654321",
-            "valor_final": "850000",
-            "url_archivo_adjunto": "https://dominio.com/boleto/900.pdf",
-            "fecha_compra": "2026-02-26T00:00:00.000Z",
-            "created_at": "2026-03-10T20:59:25.000Z",
-            "segmentos": [
-                {
-                    "tipo_segmento": "IDA",
-                    "numero_vuelo": "LA123",
-                    "fecha_vuelo": "2026-03-10",
-                    "clase_tarifaria": "Económica",
-                    "politica_equipaje": "1 maleta 23kg",
-                    "comentario": ""
-                },
-                {
-                    "tipo_segmento": "VUELTA",
-                    "numero_vuelo": "LA456",
-                    "fecha_vuelo": "2026-03-15",
-                    "clase_tarifaria": "Económica",
-                    "politica_equipaje": "1 maleta 23kg",
-                    "comentario": ""
-                }
-            ]
-        }
-    },
-    "event": {
-        "type": "BOLETO_EMITIDO",
-        "affected_entities": [
-            {
-                "entity": "solicitud",
-                "id": 3,
-                "new_state": "BOLETO CARGADO"
-            },
-            {
-                "entity": "boleto",
-                "id": 2,
-                "new_state": "BOLETO EMITIDO"
-            }
-        ]
-    }
-}
+      "success": true,
+      "message": "Boleto emitido correctamente",
+      "data": {
+          "boleto": {
+              "id": 2,
+              "estado": "BOLETO EMITIDO",
+              "cotizacion_id": 7,
+              "reemplaza_boleto_id": null,
+              "cobertura": "IDA",
+              "valor_final": "840000",
+              "created_at": "2026-03-12T00:35:06.000Z",
+              "segmentos": [
+                  {
+                      "tipo_segmento": "IDA",
+                      "aerolinea": "Wingo",
+                      "codigo_reserva": "ZXCV12",
+                      "numero_tiquete": "987654321",
+                      "numero_vuelo": "WA123",
+                      "fecha_vuelo": "2026-02-02",
+                      "fecha_compra": "2026-02-01",
+                      "clase_tarifaria": "Económica",
+                      "politica_equipaje": "1 maleta 23kg",
+                      "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf"
+                  },
+                  {
+                      "tipo_segmento": "VUELTA",
+                      "aerolinea": "Wingo",
+                      "codigo_reserva": "ZXCV12",
+                      "numero_tiquete": "987654321",
+                      "numero_vuelo": "WA788",
+                      "fecha_vuelo": "2026-03-20",
+                      "fecha_compra": "2026-02-01",
+                      "clase_tarifaria": "Económica",
+                      "politica_equipaje": "1 maleta 23kg",
+                      "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf"
+                  }
+              ]
+          }
+      },
+      "event": {
+          "type": "BOLETO_EMITIDO",
+          "affected_entities": [
+              {
+                  "entity": "solicitud",
+                  "id": 2,
+                  "new_state": "BOLETO CARGADO"
+              },
+              {
+                  "entity": "boleto",
+                  "id": 2,
+                  "new_state": "BOLETO EMITIDO"
+              },
+              {
+                  "entity": "cotizacion",
+                  "id": 6,
+                  "new_state": "COTIZACION ANULADA"
+              }
+          ]
+      }
+  }
     
   */
 
@@ -114,62 +125,12 @@ export class BoletoController {
   }
 
 
-
-    /*
-  DESCRIPCIÓN: Admin reemplaza un boleto ya emitido por uno nuevo. El boleto anterior queda anulado y el nuevo boleto queda en estado "EMITIDO". La solicitud asociada a la cotización del boleto reemplazado permanece en estado "BOLETO EMITIDO".
-  ENDPOINT POST /boleto/:boletoId/reemplazar
-              Ej: POST http://localhost:3000/boleto/2/reemplazar
-  BODY
- {
-  "cobertura": "IDA",
-  "aerolinea": "LATAM",
-  "codigo_reserva": "ZXCV12",
-  "numero_tiquete": "987654321", 
-  "url_archivo_adjunto": "https://dominio.com/boleto/900.pdf",
-  "valor_final": 850000,
-  "fecha_compra": "2026-02-26",
-  "comentario": "",
-  "segmentos": [
-    {
-      "tipo_segmento": "IDA",
-      "numero_vuelo": "LA123",
-      "fecha_vuelo": "2026-03-10",
-      "clase_tarifaria": "Económica",
-      "politica_equipaje": "1 maleta 23kg",
-      "comentario": ""
-    },
-    {
-      "tipo_segmento": "VUELTA",
-      "numero_vuelo": "LA456",
-      "fecha_vuelo": "2026-03-15",
-      "clase_tarifaria": "Económica",
-      "politica_equipaje": "1 maleta 23kg",
-      "comentario": ""
-    }
-  ]
-}
-
-
-  RESPUESTA
-  */
-
-  // POST /boleto/:boletoId/reemplazar
-  @Post('boleto/:boletoId/reemplazar')
-  async reemplazarBoleto(
-    @Param('boletoId') boletoId: string,
-    @Body() data: ReemplazarBoletoDto,
-  ) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticacion
-    const usuarioId = 1;
-    return this.boletoService.reemplazarBoleto(Number(boletoId), usuarioId, data);
-  }
-
-
+  
       /*
   DESCRIPCIÓN: El Solicitante puede generar una novedad relacionada con un boleto específico.
 
   ENDPOINT POST /boleto/:id/novedad
-          Ej: http://localhost:3000/boleto/1/novedad
+          Ej: http://localhost:3000/boleto/2/novedad
   BODY
   {
     "tipo_novedad": "CAMBIO DE VUELO",
@@ -181,7 +142,7 @@ export class BoletoController {
       "message": "Novedad registrada correctamente",
       "data": {
           "boleto": {
-              "id": 1,
+              "id": 2,
               "estado": "NOVEDAD"
           },
           "comentario": "El vuelo de regreso ha sido cancelado por la aerolínea y se ha reprogramado para el día siguiente."
@@ -191,7 +152,7 @@ export class BoletoController {
           "affected_entities": [
               {
                   "entity": "solicitud",
-                  "id": 5,
+                  "id": 2,
                   "new_state": "NOVEDAD"
               }
           ]
@@ -206,6 +167,120 @@ export class BoletoController {
   ) {
     const usuarioId = 1;
     return this.boletoService.generarNovedad(Number(id), usuarioId, data);
+  }
+
+
+
+
+    /*
+  DESCRIPCIÓN: Admin reemplaza un boleto ya emitido por uno nuevo. El boleto anterior queda anulado y el nuevo boleto queda en estado "EMITIDO". La solicitud asociada a la cotización del boleto reemplazado permanece en estado "BOLETO EMITIDO".
+  ENDPOINT POST /boleto/:boletoId/reemplazar
+              Ej: POST http://localhost:3000/boleto/2/reemplazar
+  BODY
+  {
+      "cobertura": "IDA_Y_VUELTA",   
+      "valor_final": 840000,
+      "comentario": "",
+    "segmentos": [
+      {
+        "tipo_segmento": "IDA",
+        "aerolinea": "Wingo",
+        "codigo_reserva": "ZXCV12",
+        "numero_tiquete": "987654321",
+        "numero_vuelo": "WA123",
+        "fecha_vuelo": "2026-02-02",
+        "fecha_compra": "2026-02-01",
+        "clase_tarifaria": "Económica",
+        "politica_equipaje": "1 maleta 23kg",
+        "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf"
+      },
+      {
+        "tipo_segmento": "VUELTA",
+        "aerolinea": "Wingo",
+        "codigo_reserva": "ZXCV12",
+        "numero_tiquete": "5252525252", //Reemisión
+        "numero_vuelo": "WA555",
+        "fecha_vuelo": "2026-03-22",
+        "fecha_compra": "2026-02-01",
+        "clase_tarifaria": "Económica",
+        "politica_equipaje": "1 maleta 23kg",
+        "url_archivo_adjunto": "https://dominio.com/boleto/4552.pdf"
+      }
+    ]
+  }
+RESPUESTA
+    {
+      "success": true,
+      "message": "Boleto reemplazado correctamente",
+      "data": {
+          "boleto": {
+              "id": 3,
+              "cotizacion_id": 7,
+              "estado": "BOLETO EMITIDO",
+              "reemplaza_boleto_id": 2,
+              "cobertura": "IDA_Y_VUELTA",
+              "valor_final": "840000",
+              "segmentos": [
+                  {
+                      "tipo_segmento": "IDA",
+                      "aerolinea": "Wingo",
+                      "codigo_reserva": "ZXCV12",
+                      "numero_tiquete": "987654321",
+                      "numero_vuelo": "WA123",
+                      "fecha_vuelo": "2026-02-02",
+                      "fecha_compra": "2026-02-01",
+                      "clase_tarifaria": "Económica",
+                      "politica_equipaje": "1 maleta 23kg",
+                      "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf"
+                  },
+                  {
+                      "tipo_segmento": "VUELTA",
+                      "aerolinea": "Wingo",
+                      "codigo_reserva": "ZXCV12",
+                      "numero_tiquete": "5252525252",
+                      "numero_vuelo": "WA555",
+                      "fecha_vuelo": "2026-03-22",
+                      "fecha_compra": "2026-02-01",
+                      "clase_tarifaria": "Económica",
+                      "politica_equipaje": "1 maleta 23kg",
+                      "url_archivo_adjunto": "https://dominio.com/boleto/4552.pdf"
+                  }
+              ]
+          }
+      },
+      "event": {
+          "type": "BOLETO_REEMPLAZADO",
+          "affected_entities": [
+              {
+                  "entity": "solicitud",
+                  "id": 2,
+                  "new_state": "BOLETO CARGADO"
+              },
+              {
+                  "entity": "boleto",
+                  "id": 2,
+                  "new_state": "BOLETO ANULADO"
+              },
+              {
+                  "entity": "boleto",
+                  "id": 3,
+                  "new_state": "BOLETO EMITIDO"
+              }
+          ]
+      }
+  }
+
+  */
+
+  // POST /boleto/:boletoId/reemplazar
+  @Post('boleto/:boletoId/reemplazar')
+  async reemplazarBoleto(
+    @Param('boletoId') boletoId: string,
+    @Body() data: ReemplazarBoletoDto,
+  ) {
+    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticacion
+    const usuarioId = 1;
+    return this.boletoService.reemplazarBoleto(Number(boletoId), usuarioId, data);
   }
 
 
@@ -258,20 +333,18 @@ export class BoletoController {
   DESCRIPCIÓN: El solicitante confirma finalmente estar conforme con  
 
   ENDPOINT  POST /boleto/:id/confirmar
-            Ej: http://localhost:3000/boleto/1/confirmar
+            Ej: http://localhost:3000/boleto/2/confirmar
   BODY
   {
-    "c"
-    
+     "comentario": "Confirmo que el boleto es correcto y estoy conforme con la solución propuesta."
   }
   RESPUESTA
-
-  {
+{
     "success": true,
     "message": "Boleto confirmado correctamente",
     "data": {
         "boleto": {
-            "id": 1,
+            "id": 3,
             "estado": "CONFORME POR EL EMPLEADO"
         }
     },
@@ -280,8 +353,8 @@ export class BoletoController {
         "affected_entities": [
             {
                 "entity": "solicitud",
-                "id": 5,
-                "new_state": "CERRADA"
+                "id": 2,
+                "new_state": "VIAJE PROGRAMADO"
             }
         ]
     }

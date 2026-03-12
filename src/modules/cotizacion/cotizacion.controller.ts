@@ -87,17 +87,18 @@ export class CotizacionController {
   BODY (nueva cotización):
   {
     "cotizacion_anterior_id": null,
-    "aerolinea": "Wingo",
     "valor_total": 850000,
     "moneda": "COP",
     "cobertura": "IDA_Y_VUELTA",
     "detalle": {
       "ida": {
-        "fecha": "2026-05-02",
+        "aerolinea": "Wingo",
+        "fecha": "2026-02-02",
         "vuelo": "WA123",
         "clase_tarifaria": "ECONOMICA"
       },
       "vuelta": {
+        "aerolinea": "Wingo",
         "fecha": "2026-03-15",
         "vuelo": "WA456"
       }
@@ -106,34 +107,113 @@ export class CotizacionController {
 
   RESPUESTA (nueva cotización)::
   {
-    "success": true,
-    "message": "Solicitud creada correctamente",
-    "data": {
-        "solicitud": {
-            "id": 6,
-            "radicado": "EMP002-6",
-            "estado": "PENDIENTE",
-            "tipo_de_vuelo": "IDA_Y_VUELTA",
-            "ruta": {
-                "origen": "Bogotá",
-                "destino": "Medellín",
-                "preferencia_aerolinea": "LATAM"
-            },
-            "fechas": {
-                "ida": "2026-03-10",
-                "vuelta": "2026-03-20"
-            },
-            "created_at": "2026-03-11T03:48:13.000Z"
-        }
-    },
-    "event": {
-        "type": "SOLICITUD_CREADA"
+      "success": true,
+      "message": "Cotización creada correctamente",
+      "data": {
+          "cotizacion": {
+              "id": 5,
+              "solicitud_id": 2,
+              "cotizacion_anterior_id": null,
+              "estado": "COTIZACION NUEVA",
+              "valor_total": "850000",
+              "moneda": "COP",
+              "cobertura": "IDA_Y_VUELTA",
+              "detalle": {
+                  "ida": {
+                      "aerolinea": "Wingo",
+                      "fecha": "2026-02-02",
+                      "vuelo": "WA123",
+                      "clase_tarifaria": "ECONOMICA"
+                  },
+                  "vuelta": {
+                      "aerolinea": "Wingo",
+                      "fecha": "2026-03-15",
+                      "vuelo": "WA456"
+                  }
+              },
+              "created_at": "2026-03-11T22:42:30.000Z"
+          }
+      },
+      "event": {
+          "type": "COTIZACION_CREADA",
+          "affected_entities": [
+              {
+                  "entity": "solicitud",
+                  "id": 2,
+                  "new_state": "COTIZACION CARGADA"
+              }
+          ]
+      }
+  }
+
+  BODY (Para crear una cotizacion adicional (6) para esta solicitud):
+    {
+    "cotizacion_anterior_id": null,
+    "valor_total": 750000,
+    "moneda": "COP",
+    "cobertura": "IDA_Y_VUELTA",
+    "detalle": {
+      "ida": {
+        "aerolinea": "Tingo",
+        "fecha": "2026-02-02",
+        "vuelo": "TT556",
+        "clase_tarifaria": "ECONOMICA"
+      },
+      "vuelta": {
+        "aerolinea": "Tingo",
+        "fecha": "2026-03-19",
+        "vuelo": "TT789"
+      }
     }
-}
-
-
+  }
 */
-  //// Se recurre a un "Anidamiento explícito" 
+
+  // 3️⃣ Empleado o Admin reportan novedad en cotización (comentario obligatorio)
+  // Novedad: Es un impedimento objetivo del proceso. Se usa para reportar situaciones que requieren atención o corrección por parte del admin, como errores en la cotización, cambios en la disponibilidad de vuelos, cancelaciones, etc.
+  // POST /cotizacion/:id/novedad
+  @Post('cotizacion/:id/novedad')
+  async reportarNovedad(
+    @Param('id') id: string,
+    @Body() data: NovedadCotizacionDto
+  ) {
+    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticación
+    const usuarioId = 1 // Temporal: hardcoded
+    return this.cotizacionService.reportarNovedad(Number(id), usuarioId, data)
+  }
+  /*
+  DESCRIPCIÓN: Empleado genera una novedad en la cotización específica, proporcionando un comentario obligatorio. La cotización pasa a estado "COTIZACION RECHAZADA" y la solicitud vuelve a estado "EN REVISION" para que el admin pueda corregir o cargar una nueva cotización.
+  ENDPOINT: POST /cotizacion/:id/novedad
+            Ej: POST http://localhost:3000/cotizacion/5/novedad
+  BODY:
+  {
+    "comentario": "El vuelo no podra ser ese dia, ubicar el vuelo mas proximo porfavor" 
+  }
+  RESPUESTA:
+  {
+      "success": true,
+      "message": "Novedad registrada correctamente",
+      "data": {
+          "cotizacion": {
+              "id": 5,
+              "estado": "NOVEDAD"
+          },
+          "comentario": "El vuelo no podra ser ese dia, ubicar el vuelo mas proximo porfavor"
+      },
+      "event": {
+          "type": "COTIZACION_NOVEDAD",
+          "affected_entities": [
+              {
+                  "entity": "solicitud",
+                  "id": 2,
+                  "new_state": "NOVEDAD"
+              }
+          ]
+      }
+  }
+ */
+
+
+  //// Se recurre a un "Anidamiento explícito" en endpoind
   // 1️⃣.2 Admin modifica cotización.
   //nota: por logica de negocio no se permite modificaciones parciales o totales sobre una cotización ya creada, si el admin quiere modificar algo de la cotización debe crear una nueva cotización. 
   
@@ -159,69 +239,75 @@ export class CotizacionController {
   La cotización anterior queda anulada y la nueva cotización toma su lugar. La solicitud permanece en estado "COTIZACION CARGADA" y queda pendiente de revisión por parte del empleado.
 
   ENDPOINT: POST /solicitud/:solicitudId/cotizacion/:cotizacionId/reemplazar
-              Ej: http://localhost:3000/solicitud/4/cotizacion/3/reemplazar
+              Ej: http://localhost:3000/solicitud/2/cotizacion/5/reemplazar
 
               BODY (nueva cotización):
   {
-    "aerolinea": "Wingo",
-    "valor_total": 850000,
+    "valor_total": 840000,
     "moneda": "COP",
     "cobertura": "IDA_Y_VUELTA",
     "detalle": {
       "ida": {
-        "fecha": "2026-05-02",
-        "vuelo": "WA123"
+        "aerolinea": "Wingo",
+        "fecha": "2026-02-02",
+        "vuelo": "WA123",
+        "clase_tarifaria": "ECONOMICA"
       },
       "vuelta": {
+        "aerolinea": "Wingo",
         "fecha": "2026-03-20",
-        "vuelo": "WA788"
+        "vuelo": "WA788",
+        "clase_tarifaria": "ECONOMICA"
       }
     }
   }
 
   RESPUESTA EN CASO DE REMPLAZO:
-{
-    "success": true,
-    "message": "Cotización reemplazada correctamente",
-    "data": {
-        "cotizacion": {
-            "id": 5,
-            "solicitud_id": 2,
-            "cotizacion_anterior_id": 4,
-            "estado": "COTIZACION NUEVA",
-            "aerolinea": "Wingo",
-            "valor_total": "850000",
-            "moneda": "COP",
-            "cobertura": "IDA_Y_VUELTA",
-            "detalle": {
-                "ida": {
-                    "fecha": "2026-05-02",
-                    "vuelo": "WA123"
-                },
-                "vuelta": {
-                    "fecha": "2026-03-20",
-                    "vuelo": "WA788"
-                }
-            },
-            "created_at": "2026-03-10T05:26:17.000Z"
-        }
-    },
-    "event": {
-        "type": "COTIZACION_REEMPLAZADA",
-        "affected_entities": [
-            {
-                "entity": "cotizacion",
-                "id": 4,
-                "new_state": "COTIZACION ANULADA"
-            },
-            {
-                "entity": "solicitud",
-                "id": 2,
-                "new_state": "COTIZACION CARGADA"
-            }
-        ]
-    }
-}
+  {
+      "success": true,
+      "message": "Cotización reemplazada correctamente",
+      "data": {
+          "cotizacion": {
+              "id": 7,
+              "solicitud_id": 2,
+              "cotizacion_anterior_id": 5,
+              "estado": "COTIZACION NUEVA",
+              "valor_total": "840000",
+              "moneda": "COP",
+              "cobertura": "IDA_Y_VUELTA",
+              "detalle": {
+                  "ida": {
+                      "aerolinea": "Wingo",
+                      "fecha": "2026-02-02",
+                      "vuelo": "WA123",
+                      "clase_tarifaria": "ECONOMICA"
+                  },
+                  "vuelta": {
+                      "aerolinea": "Wingo",
+                      "fecha": "2026-03-20",
+                      "vuelo": "WA788",
+                      "clase_tarifaria": "ECONOMICA"
+                  }
+              },
+              "created_at": "2026-03-11T22:49:21.000Z"
+          }
+      },
+      "event": {
+          "type": "COTIZACION_REEMPLAZADA",
+          "affected_entities": [
+              {
+                  "entity": "cotizacion",
+                  "id": 5,
+                  "new_state": "COTIZACION ANULADA"
+              },
+              {
+                  "entity": "solicitud",
+                  "id": 2,
+                  "new_state": "COTIZACION CARGADA"
+              }
+          ]
+      }
+  }
 
   */
 
@@ -241,62 +327,79 @@ export class CotizacionController {
   /*
   DESCRIPCIÓN: Empleado rechaza una cotización específica, proporcionando un comentario obligatorio. La cotización pasa a estado "COTIZACION RECHAZADA" y la solicitud vuelve a estado "EN REVISION" para que el admin pueda corregir o cargar una nueva cotización.
   ENDPOINT: POST /cotizacion/:id/rechazar
-            Ej: http://localhost:3000/cotizacion/2/rechazar
+            Ej: POST http://localhost:3000/cotizacion/7/rechazar
   BODY:
   {
-    "comentario": "El valor total no coincide con lo acordado, por favor corregir." 
-  }
-  RESPUESTA:
-
- */
-
-  // 3️⃣ Empleado o Admin reportan novedad en cotización (comentario obligatorio)
-  // Novedad: Es un impedimento objetivo del proceso. Se usa para reportar situaciones que requieren atención o corrección por parte del admin, como errores en la cotización, cambios en la disponibilidad de vuelos, cancelaciones, etc.
-  // POST /cotizacion/:id/novedad
-  @Post('cotizacion/:id/novedad')
-  async reportarNovedad(
-    @Param('id') id: string,
-    @Body() data: NovedadCotizacionDto
-  ) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticación
-    const usuarioId = 1 // Temporal: hardcoded
-    return this.cotizacionService.reportarNovedad(Number(id), usuarioId, data)
-  }
-  /*
-  DESCRIPCIÓN: Empleado genera una novedad en la cotización específica, proporcionando un comentario obligatorio. La cotización pasa a estado "COTIZACION RECHAZADA" y la solicitud vuelve a estado "EN REVISION" para que el admin pueda corregir o cargar una nueva cotización.
-  ENDPOINT: POST /cotizacion/:id/novedad
-            Ej: http://localhost:3000/cotizacion/2/novedad
-  BODY:
-  {
-    "comentario": "El vuelo de regreso no podra ser ese dia, ubicar el vuelo mas proximo porfavor" 
+    "comentario": "El vuelo de regreso es muy tarde, necesito una opción con vuelo de vuelta más temprano." 
   }
   RESPUESTA:
   {
       "success": true,
-      "message": "Novedad registrada correctamente",
+      "message": "Cotización rechazada correctamente",
       "data": {
           "cotizacion": {
-              "id": 4,
-              "estado": "NOVEDAD"
+              "id": 7,
+              "estado": "COTIZACION RECHAZADA"
           },
-          "comentario": "El vuelo de regreso no podra ser ese dia, ubicar el vuelo mas proximo porfavor"
+          "comentario": "El vuelo de regreso es muy tarde, necesito una opción con vuelo de vuelta más temprano."
       },
       "event": {
-          "type": "COTIZACION_NOVEDAD",
+          "type": "COTIZACION_RECHAZADA",
           "affected_entities": [
               {
                   "entity": "solicitud",
                   "id": 2,
-                  "new_state": "NOVEDAD"
+                  "new_state": "EN REVISION"
               }
           ]
       }
   }
-
  */
 
+  // 4️⃣ El admin revisa, decide NO crear una nueva cotización.
+  @Post('cotizacion/:id/conservar')
+  async conservarCotizacion(
+    @Param('id') id: string,
+    @Body() data: RechazarCotizacionDto
+  ) {
+    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticación
+    const usuarioId = 1 // Temporal: hardcoded
+    return this.cotizacionService.conservarCotizacion(Number(id), usuarioId, data)
+  }
 
-  // 4️⃣ Empleado selecciona cotizaciones para una solicitud
+  /*
+    DESCRIPCIÓN
+    ENDPOINT http://localhost:3000/cotizacion/7/conservar
+    BODY
+    {
+      "comentario": "No hay vuelos mas tempranos por mal clima, se mantiene vigente el vuelo actual."
+    }
+    RESPUESTA
+  {
+      "success": true,
+      "message": "Cotización conservada correctamente",
+      "data": {
+          "cotizacion": {
+              "id": 7,
+              "estado": "COTIZACION NUEVA"
+          },
+          "comentario": "No hay vuelos mas tempranos por mal clima, se mantiene vigente el vuelo actual."
+      },
+      "event": {
+          "type": "COTIZACION_CONSERVADA",
+          "affected_entities": [
+              {
+                  "entity": "solicitud",
+                  "id": 2,
+                  "new_state": "COTIZACION CARGADA"
+              }
+          ]
+      }
+  }
+  */
+
+
+  // 5️⃣ Empleado selecciona cotizaciones para una solicitud
   // POST /solicitud/:solicitudId/seleccionar-cotizacion
   @Post('solicitud/:solicitudId/seleccionar-cotizacion')
   async seleccionarCotizacion(
@@ -314,18 +417,56 @@ export class CotizacionController {
             nota: no se eligio pasar la info de las preferencias por medio de query params porque por lo general se usan para filtros o paginación, no para decisiones de negocio cuya acción afecta varias entidades (solicitud y varias cotizaciones).
 
   BODY:
-{
-  "cotizacion_primaria_id": 5,
-  "cotizacion_secundaria_id": 6,
-  "comentario": "Selecciono esta opción principal y dejo otra como respaldo."
-}
+  Nota: crear una cotizacion adicional para este escenario de prueba.
+
+  {
+    "cotizacion_primaria_id": 7,
+    "cotizacion_secundaria_id": 6,
+    "comentario": "Selecciono esta opción principal y dejo otra como respaldo."
+  }
   RESPUESTA:
-  ???
+    {
+        "success": true,
+        "message": "Cotizaciones seleccionadas correctamente",
+        "data": {
+            "cotizacion": {
+                "seleccion": {
+                    "primaria": {
+                        "id": 7,
+                        "estado": "OPCION PRIMARIA",
+                        "sub_estado": "EN REVISION"
+                    },
+                    "secundaria": {
+                        "id": 6,
+                        "estado": "OPCION SECUNDARIA",
+                        "sub_estado": "EN REVISION"
+                    }
+                },
+                "descartadas": [],
+                "anuladas_sin_cambio": [
+                    {
+                        "id": 5,
+                        "estado": "COTIZACION ANULADA"
+                    }
+                ]
+            }
+        },
+        "event": {
+            "type": "COTIZACIONES_SELECCIONADAS",
+            "affected_entities": [
+                {
+                    "entity": "solicitud",
+                    "id": 2,
+                    "new_state": "EN REVISION"
+                }
+            ]
+        }
+    }
 */
 
   // ========== CONSULTAS ==========
 
-  // 5️⃣ Listar cotizaciones de una solicitud
+  // 6️⃣ Listar cotizaciones de una solicitud
   // GET /solicitud/:solicitudId/cotizacion
   @Get('solicitud/:solicitudId/cotizacion')
   async obtenerPorSolicitud(@Param('solicitudId') solicitudId: string) {

@@ -29,6 +29,7 @@ datasource db {
 //                                            usuario es desactivado (soft-disable).
 // ─────────────────────────────────────────────────────────────────────────────
 
+
 model boleto {
   id                      Int                       @id @default(autoincrement()) @db.UnsignedInt
   cotizacion_id           Int                       @db.UnsignedInt
@@ -44,7 +45,6 @@ model boleto {
   boleto                  boleto?                   @relation("boletoToboleto", fields: [reemplaza_boleto_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_boleto_reemplaza")
   other_boleto            boleto[]                  @relation("boletoToboleto")
   historial_estado_boleto historial_estado_boleto[]
-
   segmento_boleto         segmento_boleto[]
 
   @@index([estado_actual_id], map: "fk_boleto_estado")
@@ -59,10 +59,9 @@ model cotizacion {
   estado_actual_id            Int                           @db.UnsignedInt
   cobertura                   String?                       @db.VarChar(30)
   valor_total                 Decimal                       @db.Decimal(14, 2)
-  aerolinea                   String?                       @db.VarChar(100)
-  created_at                  DateTime                      @default(now()) @db.Timestamp(0)
-  updated_at                  DateTime?                     @updatedAt @db.Timestamp(0)   // NULL al crear; se llena automáticamente en cada .update() (solo refleja cambio de estado)
-  closed_at                   DateTime?                     @db.Timestamp(0)              // NULL por defecto; se llena manualmente al cerrar el ciclo de vida de la cotización
+  created_at                  DateTime                  @default(now()) @db.Timestamp(0)
+  updated_at                  DateTime?                 @updatedAt @db.Timestamp(0)   // NULL al crear; se llena automáticamente en cada .update() (solo refleja cambio de estado)
+  closed_at                   DateTime?                 @db.Timestamp(0)
   boleto                      boleto[]
   cotizacion                  cotizacion?                   @relation("cotizacionTocotizacion", fields: [cotizacion_anterior_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_cotizacion_anterior")
   other_cotizacion            cotizacion[]                  @relation("cotizacionTocotizacion")
@@ -81,7 +80,7 @@ model estado_boleto {
   estado                  String                    @db.VarChar(100)
   slug                    String                    @unique(map: "slug") @db.VarChar(100)
   editable                Boolean?                  @default(true)
-  created_at              DateTime                  @default(now()) @db.Timestamp(0)
+  created_at                  DateTime                      @default(now()) @db.Timestamp(0)
   boleto                  boleto[]
   historial_estado_boleto historial_estado_boleto[]
 }
@@ -103,7 +102,7 @@ model estado_solicitud {
   color_hexa_main            String?                      @db.VarChar(10)
   color_hexa_sec             String?                      @db.VarChar(10)
   editable                   Boolean?                     @default(true)
-  created_at                 DateTime                     @default(now()) @db.Timestamp(0)
+  created_at                 DateTime                      @default(now()) @db.Timestamp(0)
   historial_estado_solicitud historial_estado_solicitud[]
   solicitud                  solicitud[]
 }
@@ -114,7 +113,7 @@ model historial_estado_boleto {
   estado_id     Int           @db.UnsignedInt
   usuario_id    Int           @db.UnsignedInt
   observacion   String?       @db.Text
-  created_at    DateTime      @default(now()) @db.Timestamp(0)
+  created_at                  DateTime                      @default(now()) @db.Timestamp(0)
   boleto        boleto        @relation(fields: [boleto_id], references: [id], onUpdate: Restrict, map: "fk_hist_boleto")
   estado_boleto estado_boleto @relation(fields: [estado_id], references: [id], onUpdate: Restrict, map: "fk_hist_boleto_estado")
   usuario       usuario       @relation(fields: [usuario_id], references: [id], onUpdate: Restrict, map: "fk_hist_boleto_usuario")
@@ -130,7 +129,7 @@ model historial_estado_cotizacion {
   estado_id         Int               @db.UnsignedInt
   usuario_id        Int               @db.UnsignedInt
   observacion       String?           @db.Text
-  created_at        DateTime          @default(now()) @db.Timestamp(0)
+  created_at        DateTime                      @default(now()) @db.Timestamp(0)
   cotizacion        cotizacion        @relation(fields: [cotizacion_id], references: [id], onUpdate: Restrict, map: "fk_hist_cotizacion")
   estado_cotizacion estado_cotizacion @relation(fields: [estado_id], references: [id], onUpdate: Restrict, map: "fk_hist_cotizacion_estado")
   usuario           usuario           @relation(fields: [usuario_id], references: [id], onUpdate: Restrict, map: "fk_hist_cotizacion_usuario")
@@ -146,7 +145,7 @@ model historial_estado_solicitud {
   estado_id        Int              @db.UnsignedInt
   usuario_id       Int              @db.UnsignedInt
   observacion      String?          @db.Text
-  created_at       DateTime         @default(now()) @db.Timestamp(0)
+  created_at       DateTime                      @default(now()) @db.Timestamp(0)
   solicitud        solicitud        @relation(fields: [solicitud_id], references: [id], onUpdate: Restrict, map: "fk_hist_solicitud")
   estado_solicitud estado_solicitud @relation(fields: [estado_id], references: [id], onUpdate: Restrict, map: "fk_hist_solicitud_estado")
   usuario          usuario          @relation(fields: [usuario_id], references: [id], onUpdate: Restrict, map: "fk_hist_solicitud_usuario")
@@ -185,7 +184,8 @@ model usuario {
   password_hash               String                        @db.Text
   rol                         String                        @db.VarChar(30)
   created_at                  DateTime                      @default(now()) @db.Timestamp(0)
-  disabled_at                 DateTime?                     @db.Timestamp(0)              // NULL por defecto; se llena manualmente al desactivar el usuario (soft-disable)
+  updated_at                  DateTime?                     @updatedAt @db.Timestamp(0)   // NULL al crear; se llena automáticamente en cada .update() (solo refleja cambio de estado)
+  disabled_at                 DateTime?                     @db.Timestamp(0)              // NULL por defecto; se llena manualmente al desactivar al usuario
   historial_estado_boleto     historial_estado_boleto[]
   historial_estado_cotizacion historial_estado_cotizacion[]
   historial_estado_solicitud  historial_estado_solicitud[]
@@ -209,12 +209,13 @@ model detalle_vuelo_solicitud {
 model segmento_cotizacion {
   id                Int                               @id @default(autoincrement()) @db.UnsignedInt
   cotizacion_id     Int                               @db.UnsignedInt
+  aerolinea         String?                           @db.VarChar(100)
   tipo_segmento     segmento_cotizacion_tipo_segmento
   numero_vuelo      String                            @db.VarChar(20)
   fecha_vuelo       DateTime                          @db.DateTime(0)
   clase_tarifaria   String?                           @db.VarChar(50)
   politica_equipaje String?                           @db.Text
-  created_at        DateTime                          @default(now()) @db.Timestamp(0)
+  created_at            DateTime  @default(now()) @db.Timestamp(0)
   cotizacion        cotizacion                        @relation(fields: [cotizacion_id], references: [id], onUpdate: Restrict, map: "fk_segmento_cotizacion")
 
   @@index([cotizacion_id], map: "fk_segmento_cotizacion")
@@ -234,7 +235,7 @@ model segmento_boleto {
   clase_tarifaria        String?                       @db.VarChar(50)
   politica_equipaje      String?                       @db.Text
   url_archivo_adjunto    String?                       @db.Text
-  created_at        DateTime                          @default(now()) @db.Timestamp(0)
+  created_at            DateTime  @default(now()) @db.Timestamp(0)
   boleto                 boleto                        @relation(fields: [boleto_id], references: [id], onUpdate: Restrict, map: "fk_segmento_boleto")
   estado_segmento_boleto estado_segmento_boleto        @relation(fields: [estado_id], references: [id], onUpdate: Restrict, map: "fk_segmento_estado")
 
@@ -248,16 +249,17 @@ model estado_segmento_boleto {
   slug            String            @unique(map: "slug") @db.VarChar(50)
   editable        Boolean?          @default(true)
   descripcion     String?           @db.VarChar(255)
-  created_at        DateTime                          @default(now()) @db.Timestamp(0)
+  created_at            DateTime  @default(now()) @db.Timestamp(0)
   segmento_boleto segmento_boleto[]
 }
 
-enum segmento_cotizacion_tipo_segmento {
+enum segmento_boleto_tipo_segmento {
   IDA
   VUELTA
+  ESCALA
 }
 
-enum segmento_boleto_tipo_segmento {
+enum segmento_cotizacion_tipo_segmento {
   IDA
   VUELTA
   ESCALA

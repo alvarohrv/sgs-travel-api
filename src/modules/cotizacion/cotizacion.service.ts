@@ -136,7 +136,6 @@ export class CotizacionService {
         solicitud_id: solicitudId,
         cotizacion_anterior_id: data.cotizacion_anterior_id ?? null,
         estado_actual_id: estadoCotizacionNueva.id,
-        aerolinea: data.aerolinea,
         valor_total: data.valor_total,
         cobertura: data.cobertura,
       },
@@ -144,12 +143,13 @@ export class CotizacionService {
     });
 
     // Registrar historial de la nueva cotización
+    const aerolineaIda = data.detalle?.ida?.aerolinea ?? '';
     await this.prisma.historial_estado_cotizacion.create({
       data: {
         cotizacion_id: cotizacion.id,
         estado_id: estadoCotizacionNueva.id,
         usuario_id: usuarioId,
-        observacion: `Cotización cargada - ${data.aerolinea} - ${data.cobertura} - $${data.valor_total} ${data.moneda}`,
+        observacion: `Cotización cargada${aerolineaIda ? ` - ${aerolineaIda}` : ''} - ${data.cobertura} - $${data.valor_total} ${data.moneda}`,
       },
     });
 
@@ -157,6 +157,7 @@ export class CotizacionService {
     if (data.detalle) {
       const segmentos: {
         cotizacion_id: number;
+        aerolinea: string | null;
         tipo_segmento: 'IDA' | 'VUELTA';
         numero_vuelo: string;
         fecha_vuelo: Date;
@@ -165,6 +166,7 @@ export class CotizacionService {
       }[] = [
         {
           cotizacion_id: cotizacion.id,
+          aerolinea: data.detalle.ida.aerolinea ?? null,
           tipo_segmento: 'IDA',
           numero_vuelo: data.detalle.ida.vuelo,
           fecha_vuelo: new Date(data.detalle.ida.fecha),
@@ -175,6 +177,7 @@ export class CotizacionService {
       if (data.detalle.vuelta) {
         segmentos.push({
           cotizacion_id: cotizacion.id,
+          aerolinea: data.detalle.vuelta.aerolinea ?? null,
           tipo_segmento: 'VUELTA',
           numero_vuelo: data.detalle.vuelta.vuelo,
           fecha_vuelo: new Date(data.detalle.vuelta.fecha),
@@ -216,7 +219,6 @@ export class CotizacionService {
           solicitud_id: cotizacion.solicitud_id,
           cotizacion_anterior_id: cotizacion.cotizacion_anterior_id,
           estado: cotizacion.estado_cotizacion.estado,
-          aerolinea: cotizacion.aerolinea,
           valor_total: cotizacion.valor_total,
           moneda: data.moneda,
           cobertura: cotizacion.cobertura,
@@ -713,6 +715,102 @@ export class CotizacionService {
             entity: 'solicitud',
             id: cotizacion.solicitud_id,
             new_state: 'NOVEDAD',
+          },
+        ],
+      },
+    };
+  }
+
+  /**
+   * Admin conserva una cotización en estado NOVEDAD sin crear una nueva.
+   * La cotización vuelve a COTIZACION_NUEVA y la solicitud a COTIZACION_CARGADA.
+   * URL: POST /cotizacion/:id/conservar
+   */
+  async conservarCotizacion(
+    cotizacionId: number,
+    usuarioId: number,
+    data: RechazarCotizacionDto,
+  ) {
+    const cotizacion = await this.prisma.cotizacion.findUnique({
+      where: { id: cotizacionId },
+      include: { estado_cotizacion: true },
+    });
+
+    if (!cotizacion) {
+      throw new NotFoundException(
+        `Cotización con ID ${cotizacionId} no encontrada`,
+      );
+    }
+
+    if (cotizacion.estado_cotizacion.slug !== 'novedad' && cotizacion.estado_cotizacion.slug !== 'cotizacion_rechazada') {
+      throw new BadRequestException(
+        'Solo se puede conservar una cotización en estado NOVEDAD o RECHAZADA',
+      );
+    }
+
+    const [estadoCotizacionNueva, estadoSolicitudCotizacionCargada] =
+      await Promise.all([
+        this.prisma.estado_cotizacion.findUnique({
+          where: { slug: 'cotizacion_nueva' },
+        }),
+        this.prisma.estado_solicitud.findUnique({
+          where: { slug: 'cotizacion_cargada' },
+        }),
+      ]);
+
+    if (!estadoCotizacionNueva || !estadoSolicitudCotizacionCargada) {
+      throw new NotFoundException(
+        'Estados requeridos no encontrados en la base de datos',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.cotizacion.update({
+        where: { id: cotizacionId },
+        data: { estado_actual_id: estadoCotizacionNueva.id },
+      });
+
+      await tx.historial_estado_cotizacion.create({
+        data: {
+          cotizacion_id: cotizacionId,
+          estado_id: estadoCotizacionNueva.id,
+          usuario_id: usuarioId,
+          observacion: data.comentario?.trim() || 'Cotización revisada y conservada',
+        },
+      });
+
+      await tx.solicitud.update({
+        where: { id: cotizacion.solicitud_id },
+        data: { estado_actual_id: estadoSolicitudCotizacionCargada.id },
+      });
+
+      await tx.historial_estado_solicitud.create({
+        data: {
+          solicitud_id: cotizacion.solicitud_id,
+          estado_id: estadoSolicitudCotizacionCargada.id,
+          usuario_id: usuarioId,
+          observacion: `Cotización #${cotizacionId} conservada tras revisión`,
+        },
+      });
+    });
+
+    return {
+      success: true,
+      message: 'Cotización conservada correctamente',
+      data: {
+        cotizacion: {
+          id: cotizacionId,
+          estado: estadoCotizacionNueva.estado,
+        },
+        comentario: data.comentario?.trim() || null,
+      },
+      event: {
+        type: 'COTIZACION_CONSERVADA',
+        affected_entities: [
+          {
+            entity: 'solicitud',
+            id: cotizacion.solicitud_id,
+            new_state: estadoSolicitudCotizacionCargada.estado,
           },
         ],
       },

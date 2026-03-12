@@ -462,7 +462,7 @@ export class BoletoService {
 					solicitud_id: boleto.cotizacion.solicitud_id,
 					estado_id: estadoSolicitudConforme.id,
 					usuario_id: usuarioId,
-					observacion: `Solicitud cerrada por confirmacion del boleto #${boletoId}`,
+					observacion: `Solicitud exitosa por confirmacion del boleto #${boletoId}`,
 				},
 			});
 		});
