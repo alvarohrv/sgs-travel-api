@@ -15,11 +15,13 @@ Estructura base para respuestas
   }
 }
 ~~~
+Tu estructura es buena si planeas agregar:
 Permite:
 ✔ Informar resultado
 ✔ Indicar qué cambió
 ✔ Indicar qué entidades fueron afectadas
 ✔ Consistente con arquitectura orientada a eventos
+✔ Permite facilidad para la paginación, filtrado y manejo de errores en el futuro
 El JSON tiene 3 niveles:
 🔹 success / message
     Resultado técnico.
@@ -65,7 +67,7 @@ Se obtiene del usuario autenticado (token JWT o sesión).
 
 * JSON de respuesta (response)
 ```json
- {
+{
     "success": true,
     "message": "Solicitud creada correctamente",
     "data": {
@@ -173,18 +175,18 @@ URL:  POST /solicitud/44/rechazar (Accion explicita - cuerpo vacio)
 
 * JSON de respuesta (response)
 ```json
-  {
-      "success": true,
-      "message": "Solicitud rechazada correctamente",
-      "data": {
-          "solicitud_id": 44,
-          "estado": "RECHAZADA",
-          "comentario": "El valor total no coincide con lo acordado, por favor corregir."
-      },
-      "event": {
-          "type": "SOLICITUD_RECHAZADA"
-      }
-  }
+{
+    "success": true,
+    "message": "Solicitud rechazada correctamente",
+    "data": {
+        "solicitud_id": 1,
+        "estado": "RECHAZADA",
+        "comentario": "Solicitud no cumple con los requisitos mínimos para ser procesada. Por favor revise la información y genera una nueva solicitud."
+    },
+    "event": {
+        "type": "SOLICITUD_RECHAZADA"
+    }
+}
 ```
 
 ## 🟣 5. Obtener todas las solicitudes
@@ -221,56 +223,70 @@ Devuelve respuesta
 URL:  POST /solicitud/25/cotizacion
 nota: Si el admin carga una cotización, hay una acción humana → debe existir endpoint.
 ```json
-{
-  "cotizacion_anterior_id": null,
-  "aerolinea": "LATAM",
-  "valor_total": 850000,
-  "moneda": "COP",
-  "cobertura": "IDA_Y_VUELTA",
-  "detalle": {
-    "ida": {
-      "fecha": "2026-03-10",
-      "vuelo": "LA123"
-    },
-    "vuelta": {
-      "fecha": "2026-03-15",
-      "vuelo": "LA456"
+  {
+    "cotizacion_anterior_id": null,
+    "valor_total": 850000,
+    "moneda": "COP",
+    "cobertura": "IDA_Y_VUELTA",
+    "detalle": {
+      "ida": {
+        "aerolinea": "Wingo",
+        "fecha": "2026-05-02",
+        "vuelo": "WA123",
+        "clase_tarifaria": "ECONOMICA"
+      },
+      "vuelta": {
+        "aerolinea": "Wingo",
+        "fecha": "2026-03-15",
+        "vuelo": "WA456"
+      }
     }
   }
-}
 ```
 nota: el admin podria cotizar solo IDA primero
 → entonces se necesita 'cobertura' en cotización
 
 * JSON de respuesta (response)
 ```json
-{
-  "success": true,
-  "message": "Cotización creada correctamente",
-  "data": {
-    "cotizacion": {
-      "id": 80,
-      "solicitud_id": 25,
-      "cotizacion_anterior_id": null,
-      "estado": "COTIZACION NUEVA",
-      "aerolinea": "LATAM",
-      "valor_total": 850000,
-      "moneda": "COP",
-      "cobertura": "IDA_Y_VUELTA",
-      "created_at": "2026-02-26T15:10:00Z"
-    }
-  },
-  "event": {
-    "type": "COTIZACION_CREADA",
-    "affected_entities": [
-      {
-        "entity": "solicitud",
-        "id": 25,
-        "new_state": "COTIZACION CARGADA"
+  {
+    "success": true,
+    "message": "Cotización creada correctamente",
+    "data": {
+        "cotizacion": {
+            "id": 4,
+            "solicitud_id": 2,
+            "cotizacion_anterior_id": null,
+            "estado": "COTIZACION NUEVA",
+            "valor_total": "850000",
+            "moneda": "COP",
+            "cobertura": "IDA_Y_VUELTA",
+            "detalle": {
+                "ida": {
+                    "aerolinea": "Wingo",
+                    "fecha": "2026-05-02",
+                    "vuelo": "WA123",
+                    "clase_tarifaria": "ECONOMICA"
+                },
+                "vuelta": {
+                    "aerolinea": "Wingo",
+                    "fecha": "2026-03-15",
+                    "vuelo": "WA456"
+                }
+            },
+            "created_at": "2026-03-11T04:04:51.000Z"
+        }
+    },
+    "event": {
+          "type": "COTIZACION_CREADA",
+          "affected_entities": [
+              {
+                  "entity": "solicitud",
+                  "id": 2,
+                  "new_state": "COTIZACION CARGADA"
+              }
+          ]
       }
-    ]
   }
-}
 ```
 -> 
 nota:
@@ -328,23 +344,102 @@ Cotizacion anterior → `COTIZACION_ANULADA`
 Cotización nueva en: `COTIZACION_NUEVA`
 la cotizacion nueva debe referenciar la cotizacion reemplazada
 Pero además, la solicitud cambia a: `COTIZACION_CARGADA`
-nota: estidad genera creación de recurso con referencia opcional (pero si es un rempazo es obligatorio).
+
+* JSON de solicitud (request)
+URL: POST /solicitud/:solicitudId/cotizacion/:cotizacionId/reemplazar
+
+```json
+  {
+    "valor_total": 840000,
+    "moneda": "COP",
+    "cobertura": "IDA_Y_VUELTA",
+    "detalle": {
+      "ida": {
+        "aerolinea": "Wingo",
+        "fecha": "2026-05-02",
+        "vuelo": "WA123",
+        "clase_tarifaria": "ECONOMICA"
+      },
+      "vuelta": {
+        "aerolinea": "Wingo",
+        "fecha": "2026-03-20",
+        "vuelo": "WA788",
+        "clase_tarifaria": "ECONOMICA"
+      }
+    }
+  }
+```
+
+```json
+  {
+      "success": true,
+      "message": "Cotización reemplazada correctamente",
+      "data": {
+          "cotizacion": {
+              "id": 5,
+              "solicitud_id": 2,
+              "cotizacion_anterior_id": 4,
+              "estado": "COTIZACION NUEVA",
+              "valor_total": "840000",
+              "moneda": "COP",
+              "cobertura": "IDA_Y_VUELTA",
+              "detalle": {
+                  "ida": {
+                      "aerolinea": "Wingo",
+                      "fecha": "2026-05-02",
+                      "vuelo": "WA123",
+                      "clase_tarifaria": "ECONOMICA"
+                  },
+                  "vuelta": {
+                      "aerolinea": "Wingo",
+                      "fecha": "2026-03-20",
+                      "vuelo": "WA788",
+                      "clase_tarifaria": "ECONOMICA"
+                  }
+              },
+              "created_at": "2026-03-11T04:32:47.000Z"
+          }
+      },
+      "event": {
+          "type": "COTIZACION_REEMPLAZADA",
+          "affected_entities": [
+              {
+                  "entity": "cotizacion",
+                  "id": 4,
+                  "new_state": "COTIZACION ANULADA"
+              },
+              {
+                  "entity": "solicitud",
+                  "id": 2,
+                  "new_state": "COTIZACION CARGADA"
+              }
+          ]
+      }
+  }
+```
+
+/////////// Nota otra forma (no recomendada)
+
+Es posible usar el endpoint de creacion enviando el atributo:
+"cotizacion_anterior_id"
+nota: donde, si es un remplazo la referencia ya no es opcional
 
 * JSON de solicitud (request)
 URL:  POST /solicitud/25/cotizacion  (La diferencia esta en el BODY)
 ```json
 {
   "cotizacion_anterior_id": 80,
-  "aerolinea": "LATAM",
   "valor_total": 790000,
   "moneda": "COP",
   "cobertura": "IDA_Y_VUELTA",
   "detalle": {
     "ida": {
+      "aerolinea": "LATAM",
       "fecha": "2026-03-10",
       "vuelo": "LA123"
     },
     "vuelta": {
+      "aerolinea": "LATAM",
       "fecha": "2026-03-15",
       "vuelo": "LA456"
     }
@@ -359,92 +454,15 @@ Guarda referencia
 Cambia solicitud → COTIZACION_CARGADA
 Registra historial
 
-```json
-{
-  "success": true,
-  "message": "Cotización reemplazada correctamente",
-  "data": {
-    "cotizacion": {
-      "id": 95,
-      "solicitud_id": 25,
-      "estado": "COTIZACION NUEVA",
-      "reemplaza_cotizacion_id": 80,
-      "aerolinea": "LATAM",
-      "valor_total": 790000,
-      "moneda": "COP",
-      "cobertura": "IDA_Y_VUELTA",
-      "created_at": "2026-02-26T16:20:00Z"
-    }
-  },
-  "event": {
-    "type": "COTIZACION_REEMPLAZADA",
-    "affected_entities": [
-      {
-        "entity": "cotizacion",
-        "id": 80,
-        "new_state": "COTIZACION ANULADA"
-      },
-      {
-        "entity": "solicitud",
-        "id": 25,
-        "new_state": "COTIZACION CARGADA"
-      }
-    ]
-  }
-}
-```
-
-## 🔴 9. COTIZACION fue revizada y se conserva
-El admin revisa, decide NO crear una nueva cotización.
-La misma cotización vuelve a estar activa.
-Cotización → vuelve a `COTIZACION_NUEVA`
-Solicitud → `COTIZACION_CARGADA`
-Registra historial
-Devuelve respuesta
-
-* JSON de solicitud (request)
-URL:  POST /cotizacion/26/conservar
-Nota: No es PATCH, No es PUT, Es acción de negocio.
-```json
-{
-  "comentario": "Se revisó la tarifa, se mantiene vigente."
-}
-```
-
-* JSON de respuesta (response)
-```json
-{
-  "success": true,
-  "message": "Cotización conservada correctamente",
-  "data": {
-    "cotizacion": {
-      "id": 95,
-      "estado": "COTIZACION NUEVA"
-    }
-  },
-  "event": {
-    "type": "COTIZACION_CONSERVADA",
-    "affected_entities": [
-      {
-        "entity": "solicitud",
-        "id": 25,
-        "new_state": "COTIZACION CARGADA"
-      }
-    ]
-  }
-}
-```
-nota: por tanto, no hay cotizacion_anterior_id.
-
-## 🟠 10. Generar Novedad en cotizacion (requiere comentario obligatorio)
+## 🟠 9. Generar Novedad en cotizacion (requiere comentario obligatorio)
 Se genera una `NOVEDAD` tanto en cotizacion como en solicitud
 
 * JSON de solicitud (request)
 URL: POST /cotizacion/95/novedad
 ```json
-{
-  "comentario": "La tarifa cambió, necesito ajuste."
-}
+  {
+    "comentario": "El vuelo no podra ser ese dia, ubicar el vuelo mas proximo porfavor" 
+  }
 ```
 nota:
 Por seguridad el 'usuario_id' no debe venir en body
@@ -457,6 +475,30 @@ const rol = req.user.rol;
 
 * JSON de respuesta (response)
 ```json
+
+  {
+      "success": true,
+      "message": "Novedad registrada correctamente",
+      "data": {
+          "cotizacion": {
+              "id": 3,
+              "estado": "NOVEDAD"
+          },
+          "comentario": "El vuelo no podra ser ese dia, ubicar el vuelo mas proximo porfavor"
+      },
+      "event": {
+          "type": "COTIZACION_NOVEDAD",
+          "affected_entities": [
+              {
+                  "entity": "solicitud",
+                  "id": 5,
+                  "new_state": "NOVEDAD"
+              }
+          ]
+      }
+  }
+
+  ////// LLEVAR A ALGO SIMILAR A ESTO::::  CUANDO SE LLEGE A LA PARTE DE COMENTARIOS : 
 {
   "success": true,
   "message": "Novedad registrada correctamente",
@@ -492,6 +534,51 @@ const rol = req.user.rol;
 
 ```
 
+
+## 🔴 10. COTIZACION fue revizada y se conserva  (((((POR IMPLMETAR)))))
+El admin revisa, decide NO crear una nueva cotización.
+La misma cotización vuelve a estar activa.
+Cotización → vuelve a `COTIZACION_NUEVA`
+Solicitud → `COTIZACION_CARGADA`
+Registra historial
+Devuelve respuesta
+
+* JSON de solicitud (request)
+URL:  POST /cotizacion/26/conservar
+Nota: No es PATCH, No es PUT, Es acción de negocio.
+```json
+  {
+    "comentario": "No hay vuelos proximos por mal clima, se mantiene vigente el vuelo actual."
+  }
+```
+
+* JSON de respuesta (response)
+```json
+  {
+      "success": true,
+      "message": "Cotización conservada correctamente",
+      "data": {
+          "cotizacion": {
+              "id": 3,
+              "estado": "COTIZACION NUEVA"
+          },
+          "comentario": "No hay vuelos proximos por mal clima, se mantiene vigente el vuelo actual."
+      },
+      "event": {
+          "type": "COTIZACION_CONSERVADA",
+          "affected_entities": [
+              {
+                  "entity": "solicitud",
+                  "id": 5,
+                  "new_state": "COTIZACION CARGADA"
+              }
+          ]
+      }
+  }
+```
+nota: por tanto, no hay cotizacion_anterior_id.
+
+
 ## 🔴 11. Usuario selecciona Cotización (Primaria y opcional Secundaria)
 No son estados “bloqueantes”, solo indican preferencia del usuario.
 
@@ -518,11 +605,11 @@ URL:
 POST /solicitud/25/seleccionar-cotizacion
 
 ```json
-{
-  "cotizacion_primaria_id": 95,
-  "cotizacion_secundaria_id": 75,
-  "comentario": "Selecciono esta opción principal y dejo otra como respaldo."
-}
+  {
+    "cotizacion_primaria_id": 5,
+    "cotizacion_secundaria_id": 6,
+    "comentario": "Selecciono esta opción principal y dejo otra como respaldo."
+  }
 ```
 * JSON de respuesta (response)
 ```json
@@ -963,6 +1050,13 @@ POST
   }
 ```
 
+
+Duda:
+2. del json de respuesta de "Usuario registrado correctamente" elimine "rol": "ADMIN", pero quizas sea util dejarlo para mostrarlo en el frontend? (bueno veo que en la respuesta sugerida lo agregastes); ahora bien en el json de request se es necesario que el rol venga del frontend? o se asigna por defecto a 'SOLICITANTE' y solo un admin puede cambiarlo posteriormente desde 'PATCH /users/:id/rol' ? 
+
+
+
+
 ## ✅ 16. Solicitante conforme
 
 El solicitante confirma que el boleto emitido es correcto y el proceso finaliza.
@@ -1031,6 +1125,210 @@ El flujo:
 * Respuestas consistentes
 * Todo dentro de una misma transacción. transaction()
 ---
+
+
+
+## 🟡 ??. Creacion de Usuario
+
+El registro es un proceso administrativo que vive en el módulo de Usuarios, donde la contraseña se transforma en un hash antes de tocar la base de datos.
+
+Recibir datos: Obtener el objeto con el username y el password.
+Generar Salt y Hash: Usar bcrypt.hash(password, 5).
+Guardar en Prisma: Crear el registro reemplazando el password original por el hash.
+Limpiar respuesta: Retornar el usuario creado sin el campo password por seguridad.
+
+URL:
+POST /usuario
+Opcional (comentario del solicitante):
+* JSON de solicitud (request)
+```json
+{
+  "numero_documento": "123456789",
+  "cod_empleado": "AR-2026-0001",
+  "nombre": "Alvaro",
+  "correo": "alv-demo@gmail.com",
+  "username": "ar",
+  "password": "ar"
+}
+
+```
+FLUJO:
+Recibir datos
+↓
+bcrypt.hash
+↓
+Guardar en base de datos
+↓
+Responder sin password
+
+
+
+* JSON de respuesta (response)
+```json
+{
+  "success": true,
+  "message": "Usuario registrado correctamente",
+  "data": {
+    "usuario": {
+      "id": 1,
+      "numero_documento": "123456789",
+      "cod_empleado": "AR-2026-0001",
+      "nombre": "Alvaro",
+      "correo": "alv-demo@gmail.com",
+      "username": "ar",
+      "rol": "SOLICITANTE",
+      "created_at": "2026-02-26T20:00:00Z"
+    }
+  }
+}
+```
+
+---
+
+Otras rutas relacionadas con usuarios (CRUD básico, sin olvidar la seguridad en la actualización de contraseñas):
+GET    /users / con paginación y filtros igual que solicitud
+GET    /users/:id
+
+PATCH  /users/:id
+Para actualizar datos del usuario, excepto contraseña y rol (que podrían tener endpoints específicos por seguridad)
+* JSON de solicitud (request)
+```json
+
+{
+  "nombre": "Alvaro Ruiz",
+}
+```
+* JSON de respuesta (response)
+```json
+
+{
+  "success": true,
+  "message": "Usuario actualizado correctamente",
+  "data": {
+    "usuario": {
+      "id": 1,
+      "numero_documento": "123456789",
+      "cod_empleado": "AR-2026-0001",
+      "nombre": "Alvaro Ruiz",
+      "correo": "alv-demo@gmail.com"
+    }
+  }
+}
+```
+
+Es importante proteger esta ruta para que solo el propio usuario o un admin puedan actualizar los datos. Para esto se usara decoradores y guards en NestJS:
+@Roles('ADMIN') // Decorador personalizado para definir el permiso 
+@UseGuards(JwtAuthGuard, RolesGuard) // Protege la ruta
+..
+
+PATCH /users/:id/rol 
+Para actualizar solo el rol del usuario
+* JSON de solicitud (request)
+```json
+
+{
+  "rol": "SOLICITANTE" 
+}
+```
+
+nota: Solo un admin puede cambiar roles, y no puede cambiar su propio rol para evitar bloqueos accidentales.
+* JSON de respuesta (response)
+```json
+{
+  "success": true,
+  "message": "Rol del usuario actualizado correctamente",
+  "data": {
+    "usuario": {
+      "id": 1,
+      "rol": "SOLICITANTE"
+    }
+  }
+}
+```
+
+DELETE /users/:id
+Para eliminar un usuario, o mejor dicho, para desactivarlo sin borrar su registro como tal, se puede usar disabled_at
+* JSON de solicitud (request)
+```json
+{
+  "reason": "El usuario ya no forma parte de la organización."
+}
+```
+* JSON de respuesta (response)
+```json
+{
+  "success": true,
+  "message": "Usuario desactivado correctamente",
+  "data": {
+    "usuario": {
+      "id": 1,
+      "disabled_at": "2026-02-26T21:00:00Z"
+    }
+  }
+}
+```
+
+PATCH /usuario/:id/password
+Para actualizar la contraseña, se requiere la contraseña actual para validar que el usuario es quien dice ser, y luego se aplica el mismo proceso de hash que en el registro.
+Uso de bcrypt.hash para nueva contraseña.
+
+* JSON de solicitud (request)
+{
+  "oldPassword": "clave_actual_123",
+  "newPassword": "nueva_clave_456",
+  "confirmPassword": "nueva_clave_456"
+}
+* JSON de respuesta (response)
+```json
+{
+  "success": true,
+  "message": "Contraseña actualizada correctamente"
+}
+```
+
+
+## 🟡 ??. Login
+
+
+URL:
+POST /auth/login
+
+* JSON de solicitud (request)
+```json
+{
+  "username": "ar",
+  "password": "ar"
+}
+```
+
+~~~
+cliente envía username + password
+↓
+Passport Local Strategy valida credenciales
+↓
+AuthService genera JWT
+↓
+cliente recibe token para autenticación en futuras solicitudes
+~~~
+
+* JSON de respuesta (response)
+```json
+{
+  "success": true,
+  "message": "Login exitoso",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6.IkpXV...",
+    "user": { "id": 5, "username": "alvaro", "role": "ADMIN" }
+  }
+}
+```
+
+Otras rutas relacionadas con autenticación:
+POST /auth/login
+POST /auth/refresh-token
+POST /auth/logout (opcional)
+
+
 
 
 # 🏗 Cómo se ve internamente en Node (IDEAS)
