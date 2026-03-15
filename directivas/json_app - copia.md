@@ -1145,7 +1145,7 @@ Opcional (comentario del solicitante):
 {
   "numero_documento": "123456789",
   "cod_empleado": "AR-2026-0001",
-  "nombre": "Alvaro",
+  "nombre": "Alvarex",
   "correo": "alv-demo@gmail.com",
   "username": "ar",
   "password": "ar"
@@ -1273,11 +1273,13 @@ Para actualizar la contraseña, se requiere la contraseña actual para validar q
 Uso de bcrypt.hash para nueva contraseña.
 
 * JSON de solicitud (request)
+```json
 {
   "oldPassword": "clave_actual_123",
   "newPassword": "nueva_clave_456",
   "confirmPassword": "nueva_clave_456"
 }
+```
 * JSON de respuesta (response)
 ```json
 {
@@ -1285,7 +1287,17 @@ Uso de bcrypt.hash para nueva contraseña.
   "message": "Contraseña actualizada correctamente"
 }
 ```
+Un endpoint muy útil que no mencionó:
 
+PATCH /usuarios/:id/password
+
+para cambiar contraseña.
+
+Request:
+
+{
+  "password_actual": "1234",
+  "password_nueva": "abcd"
 
 ## 🟡 ??. Login
 

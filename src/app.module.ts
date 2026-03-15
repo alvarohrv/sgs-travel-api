@@ -8,6 +8,7 @@ import { BoletoModule } from './modules/boleto/boleto.module';
 import { UsuarioModule } from './modules/usuario/usuario.module';
 import { HistorialModule } from './modules/historial/historial.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
 
 
 @Module({
@@ -17,7 +18,8 @@ import { PrismaModule } from '../prisma/prisma.module';
     CotizacionModule,
     BoletoModule,
     UsuarioModule,
-    HistorialModule
+    HistorialModule,
+    AuthModule
     // ComentarioModule
   ]
   // controllers: [AppController], 

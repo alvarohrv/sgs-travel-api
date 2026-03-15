@@ -71,7 +71,10 @@
 ═══════════════════════════════════════════════════════════════════════════
 */
 
-import { Body, Controller, Delete, Get, Post, Param, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Post, Param, Query, Request, UseGuards } from '@nestjs/common'
+import { Roles } from '../../auth/decorators/roles.decorator'
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
+import { RolesGuard } from '../../auth/guards/roles.guard'
 import { SolicitudService } from './solicitud.service'
 import { CrearSolicitudDto } from './dto/crear-solicitud.dto'
 import { EliminarSolicitudDto } from './dto/eliminar-solicitud.dto'
@@ -100,10 +103,12 @@ export class SolicitudController {
 
   // 1️⃣ Crear solicitud (Empleado)
   // POST /solicitud
+
+  @Roles('ADMIN')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post()
-  async crearSolicitud(@Body() data: CrearSolicitudDto) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticación
-    const usuarioId = 1 // Temporal: usuario hardcoded
+  async crearSolicitud(@Body() data: CrearSolicitudDto, @Request() req: any) {
+    const usuarioId = req.user.id
     //// Extrae el cuerpo de la petición (JSON) y lo guarda en la variable 'data'.
     return this.solicitudService.crearSolicitud(data, usuarioId)
   }
@@ -126,13 +131,13 @@ export class SolicitudController {
     }
   - nota: preferencia_aerolinea es un campo opcional.
   RESPUSTA:
- {
+{
     "success": true,
     "message": "Solicitud creada correctamente",
     "data": {
         "solicitud": {
-            "id": 6,
-            "radicado": "EMP001-6",
+            "id": 7,
+            "radicado": "EMP002-7",
             "estado": "PENDIENTE",
             "tipo_de_vuelo": "IDA_Y_VUELTA",
             "ruta": {
@@ -144,7 +149,7 @@ export class SolicitudController {
                 "ida": "2026-03-10",
                 "vuelta": "2026-03-20"
             },
-            "created_at": "2026-03-10T01:04:47.000Z"
+            "created_at": "2026-03-11T22:36:34.000Z"
         }
     },
     "event": {
@@ -167,7 +172,7 @@ export class SolicitudController {
    /*
  DESCRIPCION: Cuando un administrador quiere iniciar la revisión de una solicitud, envía un POST a /solicitud/:id/iniciar-revision, donde :id es el ID de la solicitud que quiere revisar. El controlador captura ese ID a través del decorador @Param('id') y también puede recibir un cuerpo opcional con una observación. Luego, llama al método iniciarRevision del servicio, pasando el ID de la solicitud, el usuarioId del admin (que por ahora es fijo) y la observación. El servicio se encarga de cambiar el estado de la solicitud a EN_REVISION y registrar el evento correspondiente.
  ENDPOINT: POST /solicitud/:id/iniciar-revision
-            Ejemplo: POST http://localhost:3000/solicitud/6/iniciar-revision
+            Ejemplo: POST http://localhost:3000/solicitud/7/iniciar-revision
  BODY:
  {
   "observacion": "Revisión iniciada por el admin _S05"
@@ -177,7 +182,7 @@ export class SolicitudController {
     "success": true,
     "message": "Solicitud en revisión",
     "data": {
-        "solicitud_id": 6,
+        "solicitud_id": 7,
         "estado": "EN REVISION"
     },
     "event": {
@@ -278,6 +283,8 @@ export class SolicitudController {
   // RUTA DINÁMICA GET /solicitud/:id
   // Por parámetro de ruta → GET /solicitudes/5
   // GET /solicitud/:id
+
+  
   @Get(':id') 
   async obtenerPorId(@Param('id') id: string) {
     return this.solicitudService.buscarPorId(id)
