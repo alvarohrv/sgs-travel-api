@@ -50,8 +50,10 @@
 
 ═══════════════════════════════════════════════════════════════════════════
 */
-
-import { Body, Controller, Get, Post, Param } from '@nestjs/common'
+import { Roles } from '../../auth/decorators/roles.decorator'
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
+import { RolesGuard } from '../../auth/guards/roles.guard'
+import { Body, Controller, Get, Post, Param, UseGuards } from '@nestjs/common'
 import { CotizacionService } from './cotizacion.service'
 import { CrearCotizacionDto } from './dto/crear-cotizacion.dto'
 import { ReemplazarCotizacionDto } from './dto/reemplazar-cotizacion.dto'
@@ -68,6 +70,8 @@ export class CotizacionController {
   // 1️⃣.1 Admin carga cotización sobre una solicitud
   // POST /solicitud/:solicitudId/cotizacion
   @Post('solicitud/:solicitudId/cotizacion')
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async crearCotizacion(
     @Param('solicitudId') solicitudId: string,
     @Body() data: CrearCotizacionDto
@@ -172,6 +176,8 @@ export class CotizacionController {
   // Novedad: Es un impedimento objetivo del proceso. Se usa para reportar situaciones que requieren atención o corrección por parte del admin, como errores en la cotización, cambios en la disponibilidad de vuelos, cancelaciones, etc.
   // POST /cotizacion/:id/novedad
   @Post('cotizacion/:id/novedad')
+  @Roles('SUPERADMIN', 'ADMIN', 'SOLICITANTE', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async reportarNovedad(
     @Param('id') id: string,
     @Body() data: NovedadCotizacionDto
@@ -219,6 +225,8 @@ export class CotizacionController {
   
   // POST /solicitud/:solicitudId/cotizacion/:cotizacionId/reemplazar
   @Post('solicitud/:solicitudId/cotizacion/:cotizacionId/reemplazar')
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async reemplazarCotizacion(
     @Param('solicitudId') solicitudId: string,
     @Param('cotizacionId') cotizacionId: string,
@@ -316,6 +324,8 @@ export class CotizacionController {
   // Rechazo: Es una decisión subjetiva del usuario.
   // POST /cotizacion/:id/rechazar
   @Post('cotizacion/:id/rechazar')
+  @Roles('SUPERADMIN', 'ADMIN', 'SOLICITANTE', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async rechazarCotizacion(
     @Param('id') id: string,
     @Body() data: RechazarCotizacionDto
@@ -358,6 +368,8 @@ export class CotizacionController {
 
   // 4️⃣ El admin revisa, decide NO crear una nueva cotización.
   @Post('cotizacion/:id/conservar')
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async conservarCotizacion(
     @Param('id') id: string,
     @Body() data: RechazarCotizacionDto
@@ -402,6 +414,8 @@ export class CotizacionController {
   // 5️⃣ Empleado selecciona cotizaciones para una solicitud
   // POST /solicitud/:solicitudId/seleccionar-cotizacion
   @Post('solicitud/:solicitudId/seleccionar-cotizacion')
+  @Roles('SUPERADMIN', 'SOLICITANTE', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async seleccionarCotizacion(
     @Param('solicitudId') solicitudId: string,
     @Body() data: SeleccionarCotizacionDto
@@ -468,6 +482,8 @@ export class CotizacionController {
 
   // 6️⃣ Listar cotizaciones de una solicitud
   // GET /solicitud/:solicitudId/cotizacion
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('solicitud/:solicitudId/cotizacion')
   async obtenerPorSolicitud(@Param('solicitudId') solicitudId: string) {
     return this.cotizacionService.obtenerPorSolicitud(Number(solicitudId))
@@ -475,6 +491,8 @@ export class CotizacionController {
 
   // 6️⃣ Obtener cotización por ID
   // GET /cotizacion/:id
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('cotizacion/:id')
   async obtenerPorId(@Param('id') id: string) {
     return this.cotizacionService.obtenerPorId(Number(id))

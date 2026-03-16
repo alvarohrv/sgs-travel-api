@@ -103,10 +103,9 @@ export class SolicitudController {
 
   // 1️⃣ Crear solicitud (Empleado)
   // POST /solicitud
-
-  @Roles('ADMIN')
-  @UseGuards(JwtAuthGuard, RolesGuard)
   @Post()
+  @Roles('SUPERADMIN', 'ADMIN', 'SOLICITANTE', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async crearSolicitud(@Body() data: CrearSolicitudDto, @Request() req: any) {
     const usuarioId = req.user.id
     //// Extrae el cuerpo de la petición (JSON) y lo guarda en la variable 'data'.
@@ -161,6 +160,8 @@ export class SolicitudController {
   // 2️⃣ Admin abre solicitud para revisión
   // POST /solicitud/:id/iniciar-revision
   @Post(':id/iniciar-revision')
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async iniciarRevision(
     @Param('id') id: string,
     @Body() data: IniciarRevisionDto
@@ -194,6 +195,9 @@ export class SolicitudController {
   // 3️⃣ Rechazar solicitud (comentario obligatorio)
   // POST /solicitud/:id/rechazar
   @Post(':id/rechazar')
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+
   async rechazarSolicitud(
     @Param('id') id: string,
     @Body() data: RechazarSolicitudDto
@@ -229,35 +233,89 @@ export class SolicitudController {
 
   // ========== ENDPOINTS DE CONSULTA ==========
 
+
+  ///// NOTA: La ruta fija debe ir antes de la dinámica /////
+
+  // GET /solicitud/mis-solicitudes
+  // Reutiliza el mismo servicio de listado, pero fuerza el filtro por usuario autenticado.
+  @Get('mis-solicitudes')
+  @UseGuards(JwtAuthGuard)
+  async obtenerMisSolicitudes(
+    @Request() req: any,
+    @Query('estado') estado?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('orden') orden?: string,
+  ) {
+    const pageNum = parseInt(page ?? '1', 10)
+    const limitNum = parseInt(limit ?? '10', 10)
+    const ordenVal: 'asc' | 'desc' = orden === 'asc' ? 'asc' : 'desc'
+
+    // Ignoramos cualquier intento de filtrar por otro usuario y usamos el del token.
+    return this.solicitudService.obtenerSolicitudes(
+      pageNum,
+      limitNum,
+      ordenVal,
+      estado,
+      req.user.id,
+    )
+  }
+  /*
+  DESCRIPCION: Este endpoint permite a un usuario autenticado obtener solo sus propias solicitudes. El controlador está protegido por JwtAuthGuard, lo que significa que el usuario debe enviar un token JWT válido en la cabecera de la petición. El controlador extrae el ID del usuario del token (req.user.id) y luego llama al método obtenerSolicitudes del servicio, pasando ese ID como filtro para que solo se devuelvan las solicitudes creadas por ese usuario. También soporta los mismos query params de paginación y filtrado por estado que el endpoint general de listado de solicitudes.
+  ENDPOINT: GET /solicitud/mis-solicitudes
+  Ejemplo: GET http://localhost:3000/solicitud/mis-solicitudes?estado=pendiente&page=1&limit=5
+  BODY: No requiere body, pero sí debe incluir un token JWT válido en la cabecera Authorization
+  RESPUESTA:
+  {
+
+  */
+
+
+
   // GET /solicitud/todas
   @Get('todas')
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerTodas() {
     // Sin parámetros → usa los defaults: page=1, limit=10, orden='desc'
     return this.solicitudService.obtenerSolicitudes()
   }
+
   /*
   DESCRIPCION: Este endpoint es un alias de GET /solicitud, es decir, hace exactamente lo mismo que GET /solicitud sin parámetros. Está pensado para facilitar la consulta de todas las solicitudes sin tener que usar query params. El controlador simplemente llama al método obtenerSolicitudes del servicio sin pasarle ningún parámetro, lo que hará que el servicio use los valores por defecto (página 1, 10 resultados por página, orden descendente).
   ENDPOINT: GET /solicitud/todas
 */
 
 
-
-
   // GET /solicitud
   // Por query string → GET /solicitud?id=5 (se considera una ruta estática)
   // Soporta query params opcionales:
   //   ?id=5           → busca una solicitud específica por ID
+  //   ?estado=pendiente  → filtra por estado de la solicitud
+  //   ?usuario_id=3      → filtra por usuario creador
   //   ?page=2         → página 2 (default: 1)
   //   ?limit=5        → 5 resultados por página (default: 10)
   //   ?orden=asc      → más antiguas primero (default: 'desc' = más recientes primero)
   //
   // Ejemplos:
-  //   GET /solicitud                      → página 1, 10 por página, más recientes primero
+  //   GET http://localhost:3000/solicitud      → página 1, 10 por página, más recientes primero
   //   GET /solicitud?page=2&limit=5       → página 2, 5 por página
   //   GET /solicitud?page=1&limit=3&orden=asc → 3 por página, más antiguas primero
+  //   GET /solicitud?estado=pendiente      → filtra por estado pendiente
+  //   GET /solicitud?usuario_id=1         → filtra por solicitudes creadas por el usuario con ID 3
+  //   GET /solicitud?id=5                  → busca la solicitud con ID 5 (ignora paginación y otros filtros)
+  // Buscar por usuario, por estado y paginación al mismo tiempo
+  // GET /solicitud?usuario_id=1&estado=rechazada
+  // GET /solicitud?usuario_id=3&estado=aprobada&page=1&limit=5
+  //Cuidado:
+  //   GET /solicitud?id=5&estado=pendiente → busca la solicitud con ID 5, el filtro de estado se ignora porque el ID tiene prioridad
   @Get()
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerSolicitudes(
     @Query('id') id?: string,
+    @Query('estado') estado?: string,
+    @Query('usuario_id') usuarioId?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('orden') orden?: string,
@@ -272,30 +330,39 @@ export class SolicitudController {
     // por eso usamos parseInt() y validamos que el valor sea válido.
     const pageNum  = parseInt(page  ?? '1',  10) // default: página 1
     const limitNum = parseInt(limit ?? '10', 10) // default: limite 10 por página
+    const usuarioIdNum = usuarioId ? parseInt(usuarioId, 10) : undefined
 
     // Validamos que 'orden' sea exactamente 'asc' o 'desc', cualquier otro valor → 'desc'
     const ordenVal: 'asc' | 'desc' = orden === 'asc' ? 'asc' : 'desc'
 
-    return this.solicitudService.obtenerSolicitudes(pageNum, limitNum, ordenVal)
+    return this.solicitudService.obtenerSolicitudes(
+      pageNum,
+      limitNum,
+      ordenVal,
+      estado,
+      Number.isNaN(usuarioIdNum) ? undefined : usuarioIdNum,
+    )
   }
 
 
   // RUTA DINÁMICA GET /solicitud/:id
   // Por parámetro de ruta → GET /solicitudes/5
   // GET /solicitud/:id
-
-  
   @Get(':id') 
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerPorId(@Param('id') id: string) {
     return this.solicitudService.buscarPorId(id)
   }
 
 //////////////// ESTE ENDPOINT AUNQUE EXITE NO SE EXPONDRA EN LA DOCUMENTACION PUBLICA /////////////////
 
+
   // 8️⃣ Eliminar físicamente todas las solicitudes con todas sus dependencias
   // DELETE /solicitud/eliminar-todas
-
   @Delete('eliminar-todas')
+  @Roles('SUPERADMIN')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async eliminarTodasLasSolicitudes(
     @Body() data: EliminarTodasSolicitudesDto,
   ) {
@@ -318,6 +385,8 @@ RESPUESTA:
   // 7️⃣ Eliminar físicamente una solicitud con todas sus dependencias
   // DELETE /solicitud/:id
   @Delete(':id')
+  @Roles('SUPERADMIN')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async eliminarSolicitudCompletamente(
     @Param('id') id: string,
     @Body() data: EliminarSolicitudDto,

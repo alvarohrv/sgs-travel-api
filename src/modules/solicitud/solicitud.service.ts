@@ -128,7 +128,33 @@ export class SolicitudService {
     page: number = 1,
     limit: number = 10,
     orden: 'asc' | 'desc' = 'desc',
+    estado?: string,
+    usuarioId?: number,
   ): Promise<RespuestaApiEstandar> {
+
+    // Armamos where dinámico para soportar filtros opcionales.
+    const where: Prisma.solicitudWhereInput = {}
+
+    if (typeof usuarioId === 'number') {
+      where.usuario_id = usuarioId
+    }
+
+    if (estado && estado.trim()) {
+      const estadoRaw = estado.trim()
+      const estadoSlug = estadoRaw
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+
+      where.estado_solicitud = {
+        is: {
+          OR: [
+            { slug: estadoSlug },
+            { estado: estadoRaw },
+            { estado: estadoRaw.toUpperCase() },
+          ],
+        },
+      }
+    }
 
     // Calculamos cuántos registros saltar para llegar a la página pedida
     const skip = (page - 1) * limit
@@ -138,6 +164,7 @@ export class SolicitudService {
     // 2. El total de registros en la tabla (para que el cliente sepa cuántas páginas hay)
     const [solicitudes, total] = await Promise.all([
       this.prisma.solicitud.findMany({
+        where,
         skip,      // saltar los registros de páginas anteriores
         take: limit, // tomar solo 'limit' registros
         include: {
@@ -151,7 +178,7 @@ export class SolicitudService {
         },
         orderBy: { created_at: orden } // 'desc' = más recientes primero
       }),
-      this.prisma.solicitud.count() // total real de registros en la tabla
+      this.prisma.solicitud.count({ where }) // total real según filtros aplicados
     ])
 
     // Calculamos el total de páginas para que el cliente pueda construir la navegación
@@ -168,6 +195,10 @@ export class SolicitudService {
           paginaActual: page,
           limit,
           orden,
+          filtros: {
+            estado: estado ?? null,
+            usuario_id: usuarioId ?? null,
+          },
         }
       }
     }

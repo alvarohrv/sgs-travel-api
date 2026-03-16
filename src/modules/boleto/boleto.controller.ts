@@ -1,10 +1,15 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
 import { BoletoService } from './boleto.service';
 import { EmitirBoletoDto } from './dto/emitir-boleto.dto';
 import { NovedadBoletoDto } from './dto/novedad-boleto.dto';
 import { ConservarBoletoDto } from './dto/conservar-boleto.dto';
 import { ConfirmarBoletoDto } from './dto/confirmar-boleto.dto';
 import { ReemplazarBoletoDto } from './dto/reemplazar-boleto.dto';
+
+import { Roles } from '../../auth/decorators/roles.decorator'
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
+import { RolesGuard } from '../../auth/guards/roles.guard'
+
 
 @Controller()
 export class BoletoController {
@@ -115,6 +120,8 @@ export class BoletoController {
 
   // POST /cotizacion/:cotizacionId/boleto
   @Post('cotizacion/:cotizacionId/boleto')
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async emitirBoleto(
     @Param('cotizacionId') cotizacionId: string,
     @Body() data: EmitirBoletoDto,
@@ -161,6 +168,8 @@ export class BoletoController {
   */
   // POST /boleto/:id/novedad
   @Post('boleto/:id/novedad')
+  @Roles('SUPERADMIN', 'ADMIN', 'SOLICITANTE', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async generarNovedad(
     @Param('id') id: string,
     @Body() data: NovedadBoletoDto,
@@ -274,6 +283,8 @@ RESPUESTA
 
   // POST /boleto/:boletoId/reemplazar
   @Post('boleto/:boletoId/reemplazar')
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async reemplazarBoleto(
     @Param('boletoId') boletoId: string,
     @Body() data: ReemplazarBoletoDto,
@@ -321,6 +332,8 @@ RESPUESTA
 
   // POST /boleto/:id/conservar
   @Post('boleto/:id/conservar')
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async conservarBoleto(
     @Param('id') id: string,
     @Body() data: ConservarBoletoDto,
@@ -364,6 +377,8 @@ RESPUESTA
 
   // POST /boleto/:id/confirmar
   @Post('boleto/:id/confirmar')
+  @Roles('SUPERADMIN', 'SOLICITANTE', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async confirmarBoleto(
     @Param('id') id: string,
     @Body() data: ConfirmarBoletoDto,

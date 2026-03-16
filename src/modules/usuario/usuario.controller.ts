@@ -1,13 +1,19 @@
-import { Body, Controller, Param, Patch, Post } from '@nestjs/common'
+import { Body, Controller, Param, Patch, Post, UseGuards } from '@nestjs/common'
 import { UsuarioService } from './usuario.service'
 import { CambiarRolUsuarioDto } from './dto/cambiar-rol-usuario.dto'
 import { CrearUsuarioDto } from './dto/crear-usuario.dto'
+
+import { Roles } from '../../auth/decorators/roles.decorator'
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
+import { RolesGuard } from '../../auth/guards/roles.guard'
 
 @Controller('usuario')
 export class UsuarioController {
   constructor(private readonly usuarioService: UsuarioService) {}
 
   @Post()
+  @Roles('SUPERADMIN')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async crearUsuario(@Body() data: CrearUsuarioDto) {
     return this.usuarioService.crearUsuario(data)
   }
@@ -46,6 +52,8 @@ export class UsuarioController {
 */
 
   @Patch(':id/rol')
+  @Roles('SUPERADMIN')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async cambiarRol(
     @Param('id') id: string,
     @Body() data: CambiarRolUsuarioDto,
