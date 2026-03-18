@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-// import { AppController } from './app.controller';
+import { AppController } from './app.controller';
 // import { AppService } from './app.service';
 import { SolicitudModule } from './modules/solicitud/solicitud.module';
 import { CotizacionModule } from './modules/cotizacion/cotizacion.module';
@@ -21,8 +21,8 @@ import { AuthModule } from './auth/auth.module';
     HistorialModule,
     AuthModule
     // ComentarioModule
-  ]
-  // controllers: [AppController], 
+  ],
+  controllers: [AppController],
   // providers: [AppService],
 })
 export class AppModule {}

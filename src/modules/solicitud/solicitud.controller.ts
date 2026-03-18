@@ -4,12 +4,6 @@
 
 
 
-
-
-
-
-
-
 //// Archivo original (antes de la edición):
 // import { Controller } from '@nestjs/common';
 // import { SolicitudService } from './solicitud.service';
@@ -17,7 +11,6 @@
 // export class SolicitudController {
 //   constructor(private readonly solicitudService: SolicitudService) {}
 // }
-
 
 
 /*
@@ -72,12 +65,16 @@
 */
 
 import { Body, Controller, Delete, Get, Post, Param, Query, Request, UseGuards } from '@nestjs/common'
+import { DemoPolicy } from '../../auth/decorators/demo-policy.decorator'
 import { Roles } from '../../auth/decorators/roles.decorator'
+import { DemoPolicyGuard } from '../../auth/guards/demo-policy.guard'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../../auth/guards/roles.guard'
 import { SolicitudService } from './solicitud.service'
+import { CerrarSolicitudDto } from './dto/cerrar-solicitud.dto'
 import { CrearSolicitudDto } from './dto/crear-solicitud.dto'
 import { EliminarSolicitudDto } from './dto/eliminar-solicitud.dto'
+import { EliminarSolicitudesUsuarioDto } from './dto/eliminar-solicitudes-usuario.dto'
 import { EliminarTodasSolicitudesDto } from './dto/eliminar-todas-solicitudes.dto'
 import { IniciarRevisionDto } from './dto/iniciar-revision.dto'
 import { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto'
@@ -105,11 +102,13 @@ export class SolicitudController {
   // POST /solicitud
   @Post()
   @Roles('SUPERADMIN', 'ADMIN', 'SOLICITANTE', 'DEMO')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, DemoPolicyGuard)
+  @DemoPolicy({ resource: 'solicitud', action: 'create' })
   async crearSolicitud(@Body() data: CrearSolicitudDto, @Request() req: any) {
     const usuarioId = req.user.id
+    const userRole = req.user.role
     //// Extrae el cuerpo de la petición (JSON) y lo guarda en la variable 'data'.
-    return this.solicitudService.crearSolicitud(data, usuarioId)
+    return this.solicitudService.crearSolicitud(data, usuarioId, userRole)
   }
   /*
   DESCRIPCION: Para crear una solicitud, el cliente envía un POST a /solicitud con un JSON que tiene el tipo de vuelo, la ruta (origen y destino) y las fechas. El controlador recibe esa información en el parámetro 'data' gracias al decorador @Body(). Luego, llama al método crearSolicitud del servicio, pasando esos datos junto con un usuarioId (que por ahora es fijo pero luego vendrá del token JWT). El servicio se encarga de toda la lógica para crear la solicitud en la base de datos y devuelve una respuesta estándar que el controlador retorna al cliente.
@@ -164,11 +163,12 @@ export class SolicitudController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async iniciarRevision(
     @Param('id') id: string,
-    @Body() data: IniciarRevisionDto
+    @Body() data: IniciarRevisionDto,
+    @Request() req: any,
   ) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticación
-    const usuarioId = 1 // Temporal: usuario administrador hardcoded
-    return this.solicitudService.iniciarRevision(Number(id), usuarioId, data)
+    const usuarioId = req.user.id
+    const userRole = req.user.role
+    return this.solicitudService.iniciarRevision(Number(id), usuarioId, data, userRole)
   }
    /*
  DESCRIPCION: Cuando un administrador quiere iniciar la revisión de una solicitud, envía un POST a /solicitud/:id/iniciar-revision, donde :id es el ID de la solicitud que quiere revisar. El controlador captura ese ID a través del decorador @Param('id') y también puede recibir un cuerpo opcional con una observación. Luego, llama al método iniciarRevision del servicio, pasando el ID de la solicitud, el usuarioId del admin (que por ahora es fijo) y la observación. El servicio se encarga de cambiar el estado de la solicitud a EN_REVISION y registrar el evento correspondiente.
@@ -200,11 +200,12 @@ export class SolicitudController {
 
   async rechazarSolicitud(
     @Param('id') id: string,
-    @Body() data: RechazarSolicitudDto
+    @Body() data: RechazarSolicitudDto,
+    @Request() req: any,
   ) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticación
-    const usuarioId = 1 // Temporal: usuario hardcoded
-    return this.solicitudService.rechazarSolicitud(Number(id), usuarioId, data)
+    const usuarioId = req.user.id
+    const userRole = req.user.role
+    return this.solicitudService.rechazarSolicitud(Number(id), usuarioId, data, userRole)
   }
 
   /*
@@ -355,13 +356,78 @@ export class SolicitudController {
     return this.solicitudService.buscarPorId(id)
   }
 
+  // 7.5 Cerrar solicitud (marca closed_at, sin borrado físico)
+  // POST /solicitud/:id/cerrar
+  @Post(':id/cerrar')
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async cerrarSolicitud(
+    @Param('id') id: string,
+    @Body() data: CerrarSolicitudDto,
+    @Request() req: any,
+  ) {
+    console.log('CERRAR SOLICITUD - Controller')
+    const userId = req.user.id
+    const userRole = req.user.role
+    return this.solicitudService.cerrarSolicitud(Number(id), data, userId, userRole)
+  }
+  /*
+  DESCRIPCION: Este endpoint permite "cerrar" una solicitud sin eliminarla físicamente de la base de datos. Al cerrar una solicitud, se marca el campo closed_at con la fecha y hora actual, lo que indica que la solicitud ya no está activa ni visible en los listados normales.
+  ENDPOINT POST /solicitud/:id/cerrar
+  Ejemplo: POST http://localhost:3000/solicitud/5/cerrar
+
+  BODY:
+  {
+    "confirmacion": "CERRAR",
+    "motivo": "El viaje se realizó con éxito y ya no se necesitan cambios en esta solicitud."
+  }
+  RESPUESTA:
+{
+    "success": true,
+    "message": "Solicitud cerrada correctamente",
+    "data": {
+        "solicitud_id": 10,
+        "radicado": "EMP003-10",
+        "closed_at": "2026-03-17T23:58:09.811Z",
+        "motivo": "El viaje se realizó con éxito y ya no se necesitan cambios en esta solicitud.",
+        "resumen_cierre": {
+            "boletos": [
+                {
+                    "boleto_id": 2,
+                    "estado_boleto": "CONFORME POR EL EMPLEADO",
+                    "cotizacion_asociada": {
+                        "id": 14,
+                        "estado": "COTIZACION SELECCIONADA",
+                        "slug": "cotizacion_seleccionada"
+                    }
+                }
+            ],
+            "cotizaciones_sin_boleto": [
+                {
+                    "cotizacion_id": 12,
+                    "estado": "COTIZACION ANULADA",
+                    "slug": "cotizacion_anulada"
+                },
+                {
+                    "cotizacion_id": 13,
+                    "estado": "COTIZACION ANULADA",
+                    "slug": "cotizacion_anulada"
+                }
+            ]
+        }
+    },
+    "event": {
+        "type": "SOLICITUD_CERRADA"
+    }
+}
+*/
 //////////////// ESTE ENDPOINT AUNQUE EXITE NO SE EXPONDRA EN LA DOCUMENTACION PUBLICA /////////////////
 
 
   // 8️⃣ Eliminar físicamente todas las solicitudes con todas sus dependencias
   // DELETE /solicitud/eliminar-todas
   @Delete('eliminar-todas')
-  @Roles('SUPERADMIN')
+  @Roles('SUPERADMIN','ADMIN')
   @UseGuards(JwtAuthGuard, RolesGuard)
   async eliminarTodasLasSolicitudes(
     @Body() data: EliminarTodasSolicitudesDto,
@@ -382,6 +448,33 @@ RESPUESTA:
 */
 
 //////////////// ESTE ENDPOINT AUNQUE EXITE NO SE EXPONDRA EN LA DOCUMENTACION PUBLICA /////////////////s
+  // DELETE /solicitud/usuario/:usuarioId
+
+  @Delete('usuario/:usuarioId')
+  @Roles('SUPERADMIN','DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async eliminarSolicitudesPorUsuario(
+    @Param('usuarioId') usuarioId: string,
+    @Body() data: EliminarSolicitudesUsuarioDto,
+  ) {
+    return this.solicitudService.eliminarSolicitudesPorUsuario(Number(usuarioId), data)
+  }
+/*
+DESCRIPCION: Este endpoint es para eliminar físicamente todas las solicitudes de viaje creadas por un usuario específico, junto con todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR_POR_USUARIO") para evitar borrados accidentales. 
+
+ENDPOINT: DELETE /solicitud/usuario/:usuarioId
+  Ejemplo: DELETE http://localhost:3000/solicitud/usuario/5
+BODY:
+  {
+    "confirmacion": "ELIMINAR_POR_USUARIO",
+    "motivo": "El usuario 5 es un demo y queremos eliminar todas sus solicitudes de prueba."
+  }
+RESPUESTA:
+
+*/
+
+
+
   // 7️⃣ Eliminar físicamente una solicitud con todas sus dependencias
   // DELETE /solicitud/:id
   @Delete(':id')
@@ -390,8 +483,11 @@ RESPUESTA:
   async eliminarSolicitudCompletamente(
     @Param('id') id: string,
     @Body() data: EliminarSolicitudDto,
+    @Request() req: any,
   ) {
-    return this.solicitudService.eliminarSolicitudCompletamente(Number(id), data)
+    const userId = req.user.id
+    const userRole = req.user.role
+    return this.solicitudService.eliminarSolicitudCompletamente(Number(id), data, userId, userRole)
   }
 }
 /*

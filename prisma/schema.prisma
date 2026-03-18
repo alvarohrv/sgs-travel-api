@@ -183,9 +183,10 @@ model usuario {
   username                    String                        @unique(map: "username") @db.VarChar(100)
   password_hash               String                        @db.Text
   rol                         String                        @db.VarChar(30)
-  created_at                  DateTime                      @default(now()) @db.Timestamp(0)
-  updated_at                  DateTime?                     @updatedAt @db.Timestamp(0)   // NULL al crear; se llena automáticamente en cada .update() (solo refleja cambio de estado)
-  disabled_at                 DateTime?                     @db.Timestamp(0)              // NULL por defecto; se llena manualmente al desactivar al usuario
+  created_at                 DateTime                     @default(now()) @db.Timestamp(0)
+  updated_at                 DateTime?                    @updatedAt @db.Timestamp(0)   // NULL al crear; se llena automáticamente en cada .update() (solo refleja cambio de estado)
+  disabled_at                DateTime?                    @db.Timestamp(0)              // NULL por defecto; se llena cuando el usuario es desactivado (soft-disable)
+  estad_sticas_de_uso_demo    estad_sticas_de_uso_demo?
   historial_estado_boleto     historial_estado_boleto[]
   historial_estado_cotizacion historial_estado_cotizacion[]
   historial_estado_solicitud  historial_estado_solicitud[]
@@ -251,6 +252,19 @@ model estado_segmento_boleto {
   descripcion     String?           @db.VarChar(255)
   created_at            DateTime  @default(now()) @db.Timestamp(0)
   segmento_boleto segmento_boleto[]
+}
+
+model estad_sticas_de_uso_demo {
+  id                   Int      @id @default(autoincrement()) @db.UnsignedInt
+  user_id              Int      @unique(map: "user_id") @db.UnsignedInt
+  solicitudes_creadas  Int?     @default(0) @db.UnsignedInt
+  cotizaciones_creadas Int?     @default(0) @db.UnsignedInt
+  boletos_creados      Int?     @default(0) @db.UnsignedInt
+  ultima_actualizacion DateTime @default(now()) @db.Timestamp(0)
+  created_at            DateTime  @default(now()) @db.Timestamp(0)
+  usuario              usuario  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "estadísticas_de_uso_demo_ibfk_1")
+
+  @@map("estadísticas_de_uso_demo")
 }
 
 enum segmento_boleto_tipo_segmento {

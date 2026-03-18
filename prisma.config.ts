@@ -2,13 +2,19 @@
 // npm install --save-dev prisma dotenv
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
+// import { defineConfig } from '@prisma/sdk'; // se puede usar este import si el anterior no funciona, dependiendo de la versión de Prisma.
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    seed: 'ts-node prisma/seed/seed-users.ts', // Comando para ejecutar el seeding, se puede usar el mismo comando que en package.json o el que corresponda a tu proyecto.
   },
   datasource: {
     url: process.env["DATABASE_URL"],
   },
 });
+
+
+
+

@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { DemoPolicyService } from '../../auth/demo-policy.service';
 import { CrearCotizacionDto } from './dto/crear-cotizacion.dto';
 import { ReemplazarCotizacionDto } from './dto/reemplazar-cotizacion.dto';
 import { RechazarCotizacionDto } from './dto/rechazar-cotizacion.dto';
@@ -29,7 +30,10 @@ const ESTADOS_SOLICITUD_PARA_COTIZAR = ['en_revision','novedad','cotizacion_carg
 
 @Injectable()
 export class CotizacionService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly demoPolicyService: DemoPolicyService,
+  ) {}
 
   /**
    * 3️⃣ Admin carga cotización sobre una solicitud
@@ -42,7 +46,15 @@ export class CotizacionService {
     solicitudId: number,
     usuarioId: number,
     data: CrearCotizacionDto,
+    userRole?: string,
   ) {
+    await this.demoPolicyService.assertSolicitudOwnershipIfDemo(
+      solicitudId,
+      usuarioId,
+      userRole,
+    )
+    await this.demoPolicyService.assertCanCreate('cotizacion', usuarioId, userRole)
+
     // Verificar que la solicitud existe y está en estado válido
     const solicitud = await this.prisma.solicitud.findUnique({
       where: { id: solicitudId },
@@ -208,6 +220,8 @@ export class CotizacionService {
       data.cotizacion_anterior_id !== null &&
       data.cotizacion_anterior_id !== undefined;
 
+    await this.demoPolicyService.incrementUsage('cotizacion', usuarioId, userRole)
+
     return {
       success: true,
       message: esReemplazo
@@ -256,7 +270,14 @@ export class CotizacionService {
     cotizacionId: number,
     usuarioId: number,
     data: ReemplazarCotizacionDto,
+    userRole?: string,
   ) {
+    await this.demoPolicyService.assertCotizacionOwnershipIfDemo(
+      cotizacionId,
+      usuarioId,
+      userRole,
+    )
+
     const cotizacionAnterior = await this.prisma.cotizacion.findUnique({
       where: { id: cotizacionId },
       include: {
@@ -288,7 +309,7 @@ export class CotizacionService {
     return this.crearCotizacion(solicitudId, usuarioId, {
       ...data,
       cotizacion_anterior_id: cotizacionId,
-    });
+    }, userRole);
   }
 
   /**
@@ -301,7 +322,14 @@ export class CotizacionService {
     cotizacionId: number,
     usuarioId: number,
     data: RechazarCotizacionDto,
+    userRole?: string,
   ) {
+    await this.demoPolicyService.assertCotizacionOwnershipIfDemo(
+      cotizacionId,
+      usuarioId,
+      userRole,
+    )
+
     if (!data.comentario || data.comentario.trim() === '') {
       throw new BadRequestException(
         'El comentario es obligatorio para rechazar una cotización',
@@ -412,7 +440,14 @@ export class CotizacionService {
     solicitudId: number,
     usuarioId: number,
     data: SeleccionarCotizacionDto,
+    userRole?: string,
   ) {
+    await this.demoPolicyService.assertSolicitudOwnershipIfDemo(
+      solicitudId,
+      usuarioId,
+      userRole,
+    )
+
     if (!data.cotizacion_primaria_id) {
       throw new BadRequestException('Debe enviar una cotización primaria');
     }
@@ -637,7 +672,14 @@ export class CotizacionService {
     cotizacionId: number,
     usuarioId: number,
     data: NovedadCotizacionDto,
+    userRole?: string,
   ) {
+    await this.demoPolicyService.assertCotizacionOwnershipIfDemo(
+      cotizacionId,
+      usuarioId,
+      userRole,
+    )
+
     if (!data.comentario || data.comentario.trim() === '') {
       throw new BadRequestException(
         'El comentario es obligatorio para reportar una novedad',
@@ -730,7 +772,14 @@ export class CotizacionService {
     cotizacionId: number,
     usuarioId: number,
     data: RechazarCotizacionDto,
+    userRole?: string,
   ) {
+    await this.demoPolicyService.assertCotizacionOwnershipIfDemo(
+      cotizacionId,
+      usuarioId,
+      userRole,
+    )
+
     const cotizacion = await this.prisma.cotizacion.findUnique({
       where: { id: cotizacionId },
       include: { estado_cotizacion: true },

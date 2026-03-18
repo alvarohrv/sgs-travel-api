@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { DemoPolicyService } from '../../auth/demo-policy.service';
 import { EmitirBoletoDto } from './dto/emitir-boleto.dto';
 import { NovedadBoletoDto } from './dto/novedad-boleto.dto';
 import { ConservarBoletoDto } from './dto/conservar-boleto.dto';
@@ -9,9 +10,19 @@ import { boleto, cotizacion, estado_boleto } from '@prisma/client';
 
 @Injectable()
 export class BoletoService {
-	constructor(private prisma: PrismaService) {}
+	constructor(
+		private prisma: PrismaService,
+		private readonly demoPolicyService: DemoPolicyService,
+	) {}
 
-	async emitirBoleto(cotizacionId: number, usuarioId: number, data: EmitirBoletoDto) {
+	async emitirBoleto(cotizacionId: number, usuarioId: number, data: EmitirBoletoDto, userRole?: string) {
+		await this.demoPolicyService.assertCotizacionOwnershipIfDemo(
+			cotizacionId,
+			usuarioId,
+			userRole,
+		)
+		await this.demoPolicyService.assertCanCreate('boleto', usuarioId, userRole)
+
 		if (!data.cobertura || data.cobertura.trim() === '') {
 			throw new BadRequestException('La cobertura es obligatoria para emitir el boleto');
 		}
@@ -200,6 +211,8 @@ export class BoletoService {
 			return boleto;
 		});
 
+		await this.demoPolicyService.incrementUsage('boleto', usuarioId, userRole)
+
 		return {
 			success: true,
 			message: data.reemplaza_boleto_id ? 'Boleto reemplazado correctamente' : 'Boleto emitido correctamente',
@@ -247,7 +260,9 @@ export class BoletoService {
 		};
 	}
 
-	async generarNovedad(boletoId: number, usuarioId: number, data: NovedadBoletoDto) {
+	async generarNovedad(boletoId: number, usuarioId: number, data: NovedadBoletoDto, userRole?: string) {
+		await this.demoPolicyService.assertBoletoOwnershipIfDemo(boletoId, usuarioId, userRole)
+
 		if (!data.comentario || data.comentario.trim() === '') {
 			throw new BadRequestException('El comentario es obligatorio para generar novedad en boleto');
 		}
@@ -325,7 +340,9 @@ export class BoletoService {
 		};
 	}
 
-	async conservarBoleto(boletoId: number, usuarioId: number, data?: ConservarBoletoDto) {
+	async conservarBoleto(boletoId: number, usuarioId: number, data?: ConservarBoletoDto, userRole?: string) {
+		await this.demoPolicyService.assertBoletoOwnershipIfDemo(boletoId, usuarioId, userRole)
+
 		const boleto = await this.prisma.boleto.findUnique({
 			where: { id: boletoId },
 			include: {
@@ -403,7 +420,9 @@ export class BoletoService {
 		};
 	}
 
-	async confirmarBoleto(boletoId: number, usuarioId: number, data?: ConfirmarBoletoDto) {
+	async confirmarBoleto(boletoId: number, usuarioId: number, data?: ConfirmarBoletoDto, userRole?: string) {
+		await this.demoPolicyService.assertBoletoOwnershipIfDemo(boletoId, usuarioId, userRole)
+
 		const boleto = await this.prisma.boleto.findUnique({
 			where: { id: boletoId },
 			include: {
@@ -489,7 +508,10 @@ export class BoletoService {
 		};
 	}
 
-	async reemplazarBoleto(boletoId: number, usuarioId: number, data: ReemplazarBoletoDto) {
+	async reemplazarBoleto(boletoId: number, usuarioId: number, data: ReemplazarBoletoDto, userRole?: string) {
+		await this.demoPolicyService.assertBoletoOwnershipIfDemo(boletoId, usuarioId, userRole)
+		await this.demoPolicyService.assertCanCreate('boleto', usuarioId, userRole)
+
 		if (!data.cobertura || data.cobertura.trim() === '') {
 			throw new BadRequestException('La cobertura es obligatoria para reemplazar el boleto');
 		}
@@ -595,6 +617,8 @@ export class BoletoService {
 
 			return nuevoBoleto;
 		});
+
+		await this.demoPolicyService.incrementUsage('boleto', usuarioId, userRole)
 
 		return {
 			success: true,

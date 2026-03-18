@@ -51,9 +51,11 @@
 ═══════════════════════════════════════════════════════════════════════════
 */
 import { Roles } from '../../auth/decorators/roles.decorator'
+import { DemoPolicy } from '../../auth/decorators/demo-policy.decorator'
+import { DemoPolicyGuard } from '../../auth/guards/demo-policy.guard'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../../auth/guards/roles.guard'
-import { Body, Controller, Get, Post, Param, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, Post, Param, Request, UseGuards } from '@nestjs/common'
 import { CotizacionService } from './cotizacion.service'
 import { CrearCotizacionDto } from './dto/crear-cotizacion.dto'
 import { ReemplazarCotizacionDto } from './dto/reemplazar-cotizacion.dto'
@@ -71,14 +73,16 @@ export class CotizacionController {
   // POST /solicitud/:solicitudId/cotizacion
   @Post('solicitud/:solicitudId/cotizacion')
   @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, DemoPolicyGuard)
+  @DemoPolicy({ resource: 'cotizacion', action: 'create' })
   async crearCotizacion(
     @Param('solicitudId') solicitudId: string,
-    @Body() data: CrearCotizacionDto
+    @Body() data: CrearCotizacionDto,
+    @Request() req: any,
   ) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticación
-    const usuarioId = 1 // Temporal: usuario administrador hardcoded
-    return this.cotizacionService.crearCotizacion(Number(solicitudId), usuarioId, data)
+    const usuarioId = req.user.id
+    const userRole = req.user.role
+    return this.cotizacionService.crearCotizacion(Number(solicitudId), usuarioId, data, userRole)
   }
 
   /*
@@ -180,11 +184,12 @@ export class CotizacionController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async reportarNovedad(
     @Param('id') id: string,
-    @Body() data: NovedadCotizacionDto
+    @Body() data: NovedadCotizacionDto,
+    @Request() req: any,
   ) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticación
-    const usuarioId = 1 // Temporal: hardcoded
-    return this.cotizacionService.reportarNovedad(Number(id), usuarioId, data)
+    const usuarioId = req.user.id
+    const userRole = req.user.role
+    return this.cotizacionService.reportarNovedad(Number(id), usuarioId, data, userRole)
   }
   /*
   DESCRIPCIÓN: Empleado genera una novedad en la cotización específica, proporcionando un comentario obligatorio. La cotización pasa a estado "COTIZACION RECHAZADA" y la solicitud vuelve a estado "EN REVISION" para que el admin pueda corregir o cargar una nueva cotización.
@@ -226,19 +231,22 @@ export class CotizacionController {
   // POST /solicitud/:solicitudId/cotizacion/:cotizacionId/reemplazar
   @Post('solicitud/:solicitudId/cotizacion/:cotizacionId/reemplazar')
   @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, DemoPolicyGuard)
+  @DemoPolicy({ resource: 'cotizacion', action: 'create' })
   async reemplazarCotizacion(
     @Param('solicitudId') solicitudId: string,
     @Param('cotizacionId') cotizacionId: string,
-    @Body() data: ReemplazarCotizacionDto
+    @Body() data: ReemplazarCotizacionDto,
+    @Request() req: any,
   ) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticación
-    const usuarioId = 1 // Temporal: usuario administrador hardcoded
+    const usuarioId = req.user.id
+    const userRole = req.user.role
     return this.cotizacionService.reemplazarCotizacion(
       Number(solicitudId),
       Number(cotizacionId),
       usuarioId,
       data,
+      userRole,
     )
   }
 /*
@@ -328,11 +336,12 @@ export class CotizacionController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async rechazarCotizacion(
     @Param('id') id: string,
-    @Body() data: RechazarCotizacionDto
+    @Body() data: RechazarCotizacionDto,
+    @Request() req: any,
   ) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticación
-    const usuarioId = 1 // Temporal: hardcoded
-    return this.cotizacionService.rechazarCotizacion(Number(id), usuarioId, data)
+    const usuarioId = req.user.id
+    const userRole = req.user.role
+    return this.cotizacionService.rechazarCotizacion(Number(id), usuarioId, data, userRole)
   }
   /*
   DESCRIPCIÓN: Empleado rechaza una cotización específica, proporcionando un comentario obligatorio. La cotización pasa a estado "COTIZACION RECHAZADA" y la solicitud vuelve a estado "EN REVISION" para que el admin pueda corregir o cargar una nueva cotización.
@@ -372,11 +381,12 @@ export class CotizacionController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async conservarCotizacion(
     @Param('id') id: string,
-    @Body() data: RechazarCotizacionDto
+    @Body() data: RechazarCotizacionDto,
+    @Request() req: any,
   ) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticación
-    const usuarioId = 1 // Temporal: hardcoded
-    return this.cotizacionService.conservarCotizacion(Number(id), usuarioId, data)
+    const usuarioId = req.user.id
+    const userRole = req.user.role
+    return this.cotizacionService.conservarCotizacion(Number(id), usuarioId, data, userRole)
   }
 
   /*
@@ -418,11 +428,12 @@ export class CotizacionController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async seleccionarCotizacion(
     @Param('solicitudId') solicitudId: string,
-    @Body() data: SeleccionarCotizacionDto
+    @Body() data: SeleccionarCotizacionDto,
+    @Request() req: any,
   ) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticación
-    const usuarioId = 1 // Temporal: hardcoded
-    return this.cotizacionService.seleccionarCotizacion(Number(solicitudId), usuarioId, data)
+    const usuarioId = req.user.id
+    const userRole = req.user.role
+    return this.cotizacionService.seleccionarCotizacion(Number(solicitudId), usuarioId, data, userRole)
   }
   /*
   DESCRIPCIÓN: El empleado selecciona en una sola acción la cotización primaria y opcionalmente una secundaria para una solicitud. Las cotizaciones elegidas cambian a "OPCION PRIMARIA" y "OPCION SECUNDARIA", cualquier otra cotización de esa misma solicitud pasa a "COTIZACION DESCARTADA" y la solicitud vuelve a "EN REVISION".

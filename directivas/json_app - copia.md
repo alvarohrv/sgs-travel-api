@@ -36,15 +36,94 @@ Siempre hay dos JSON en una API REST:
 ✅ JSON de solicitud (request) → Frontend → Backend
 ✅ JSON de respuesta (response) → Backend → Frontend
 
+---
+# 🧩 2. Sobre los permisos
+
+En cada endpoint se define:
+🔒 Acceso: Público o Protegido (requiere autenticación)
+🔑 Roles permitidos: SOLICITANTE, DEMO, ADMIN, SUPERADMIN
+
+- SOLICITANTE: Solo puede crear solicitudes y ver sus propias solicitudes.
+
+- DEMO: Puede crear solicitudes y ver todas las solicitudes, cotizaciones y boletos (GET).
+  Nota: DEMO es un rol especial para pruebas, solo puede manipular solicitudes creadas con su usuario (y las cotizaciones y boletos asociadas a esas solicitudes creadas por él), este ROL sí puede ver todas las solicitudes, cotizaciones, boletos para facilitar la demostración de esta aplicacion de Portafolio.
+  El rol DEMO es un "rol híbrido" o de "política especial":
+  El Usuario con rol DEMO puede crear hasta 5 solicitudes de prueba, y solo puede manipular esas solicitudes y sus cotizaciones y boletos asociados. No puede modificar solicitudes de otros usuarios. Si borra una solicitud de prueba, esa acción le permite crear otra solicitud (si llega al límite el sistema le indicara que debe eliminar solicitudes creadas por él).
+  El Usuario con rol DEMO puede crear hasta 10 cotizaciones de prueba (independiente de los estados que tengan) , y solo puede ver esas cotizaciones y sus boletos asociados. No puede modificar cotizaciones de otros usuarios.
+  El Usuario con rol DEMO puede crear hasta 15 boletos de prueba (independiente de los estados que tengan) , y solo puede ver esos boletos asociados a sus cotizaciones de prueba. No puede modificar boletos de otros usuarios.
+
+Como estrategia no se sobrecarga el RoleGuard. Crea un DemoPolicyGuard específico para el rol DEMO.
+RoleGuard: Verifica si el usuario es SOLICITANTE, ADMIN o DEMO.
+DemoPolicyGuard (o un Guard específico para Demo): Solo se activa si el rol es DEMO. Este guard verifica sus contadores (5 solicitudes, 10 cotizaciones, 15 boletos.) antes de permitir la acción.
+
+@Roles('ADMIN','SUPERADMIN','DEMO')
+@UseGuards(JwtAuthGuard, RolesGuard, DemoPolicyGuard)
+
+Se crea la tabla 'estadísticas_de_uso_demo' con columnas como:
+user_id, solicitudes_creadas, cotizaciones_creadas, boletos_creados, ultima_actualizacion, etc.
+Logica:
+Si ultima_actualizacion es distinta a la fecha de hoy al realizar el login, el servicio resetea las columnas a 0 y actualiza la fecha a hoy.
+Si es igual a hoy, simplemente verifica si el contador llegó a 5, 10 o 15 antes de permitir la acción de creacion.
+
+Ahora bien:
+- EL servicio de creación de solicitudes esta disponible para DEMO.
+- El servicio de creación de cotizaciones esta disponible para DEMO, pero solo para las solicitudes creadas por el usuario DEMO. Antes de crear la cotización, el servicio hace una consulta para verificar que la solicitud a la que se le va a crear la cotización fue creada por el usuario DEMO. Si el usuario DEMO intenta crear una cotización para una solicitud que no fue creada por él, el servicio devuelve un error indicando que no tiene permiso para realizar esa acción.
+- El servicio de creación de boletos esta disponible para DEMO, pero solo para las cotizaciones creadas por el usuario DEMO. Antes de crear el boleto, el servicio hace una consulta para verificar que la cotización a la que se le va a crear el boleto fue creada por el usuario DEMO. Si el usuario DEMO intenta crear un boleto para una cotización que no fue creada por él, el servicio devuelve un error indicando que no tiene permiso para realizar esa acción.
+- otros servicios de modificación (ej: rechazar cotización, generar novedad, revisar etc) están disponibles para DEMO siempre y cuando la entidad (solicitud, cotización o boleto) haya sido creada por el usuario DEMO. Antes de realizar la acción, el servicio hace una consulta para verificar que la entidad a la que se le va a aplicar la acción fue creada por el usuario DEMO. Si el usuario DEMO intenta modificar una entidad que no fue creada por él, el servicio devuelve un error indicando que no tiene permiso para realizar esa acción.
+- Los servicios de creación de solicitudes, cotizaciones y boletos deben actualizar estos contadores en la tabla 'estadísticas_de_uso_demo' cada vez que un usuario con rol DEMO realice una acción de creación exitosa. 
+- Los servicios de eliminación de solicitudes, cotizaciones y boletos deben permitir la eliminación sin restricciones para el rol DEMO siempre que la entidad haya sido creada por el usuario DEMO, y al eliminar una entidad creada por el usuario DEMO, se debe decrementar el contador correspondiente en la tabla 'estadísticas_de_uso_demo'.
+- Los servicios de consulta (GET) para el rol DEMO deben permitir ver todas las solicitudes, cotizaciones y boletos para las entidades creadas o no creadas por el usuario DEMO.
+
+- ADMIN: Puede crear, revisar, cotizar y ver todas las solicitudes, cotizaciones y boletos; siempre que tenga los permisos correspondientes.
+
+- SUPERADMIN: Tiene todos los permisos de ADMIN y además puede gestionar usuarios y roles.
 
 ---
-# 🧩 2️ Flujo estructurado con JSON
+# 🧩 3. Flujo estructurado con JSON
+
+## 🟡 0. Login
+
+Acceso: 🔓 Público | Rol permitido: N/A (registro abierto)
+
+Permite a los usuarios autenticarse y obtener un token JWT para acceder a las rutas protegidas.
+
+Especificaciones técnicas:
+URL: /auth/login
+Método: POST
+Header: Authorization: Bearer <token>
+
+* JSON de solicitud (request)
+POST /auth/login
+```json
+{
+  "username": "usuario1",
+  "password": "contraseña123"
+}
+```
+* JSON de respuesta (response)
+```json
+{
+  "success": true,
+  "message": "Autenticación exitosa",
+  "data ?????????????????????????????????????????????????
+}
+```
+
 
 ## 🟢 1. Solicitud creada
+
+Acceso: 🔒 Protegido | Rol permitido: SOLICITANTE, DEMO, ADMIN, SUPERADMIN
+
 Estado inicial: `PENDIENTE`
+
+Especificaciones técnicas:
+URL: /solicitud
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL: /solicitud (POST)
+
 ```json
     {
       "tipo_de_vuelo": "IDA_Y_VUELTA",
@@ -95,7 +174,15 @@ Se obtiene del usuario autenticado (token JWT o sesión).
 ```
 
 ## 🟡 2. Admin abre solicitud
+
+Acceso: 🔒 Protegido | Rol permitido: DEMO, ADMIN, SUPERADMIN
+
 Si estaba en `PENDIENTE` → cambia a `EN_REVISION`
+
+Especificaciones técnicas:
+URL: /solicitud/:solicitudId/iniciar-revision
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL:  POST /solicitud/25/iniciar-revision (Accion explicita - cuerpo vacio)
@@ -133,8 +220,17 @@ URL:  POST /solicitud/6/iniciar-revision (Accion explicita - cuerpo opcional)
 }
 ```
 ## 🟡 3. Admin revisa una cotizacion rechazada
+
+Acceso: 🔒 Protegido | Rol permitido: DEMO, ADMIN, SUPERADMIN
+
 El Admin revisa una solicitud que estaba en `COTIZACION_RECHAZADA` y decide que se puede revisar de nuevo, entonces la solicitud vuelve a `EN_REVISION` para que el admin pueda cargar una nueva cotización o conservar la existente.
 Si estaba en `COTIZACION_RECHAZADA` → cambia a `EN_REVISION`
+
+Especificaciones técnicas:
+URL: /solicitud/:solicitudId/iniciar-revision
+Método: POST
+Header: Authorization: Bearer <token>
+
 
 * JSON de solicitud (request)
 URL:  POST /solicitud/55/iniciar-revision (Accion explicita - cuerpo vacio)
@@ -157,6 +253,9 @@ URL:  POST /solicitud/55/iniciar-revision (Accion explicita - cuerpo vacio)
 }
 ```
 ## 🟣 4. Admin rechaza solicitud
+
+Acceso: 🔒 Protegido | Rol permitido: DEMO, ADMIN, SUPERADMIN
+
 Verifica que solicitud esté en EN_REVISION
 Cambia solicitud → `RECHAZADA`
 Registra historial
@@ -164,6 +263,11 @@ Devuelve respuesta
 
 Estos ocurre cuando el admin revisa la solicitud y decide que no se puede cotizar (ej: falta información crítica, fechas no válidas, duplicados, etc).
 Eventualmente la solicitud rechazada pasara a un estado "CERRADA".
+
+Especificaciones técnicas:
+URL: /solicitud/:solicitudId/rechazar
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL:  POST /solicitud/44/rechazar (Accion explicita - cuerpo vacio)
@@ -190,10 +294,23 @@ URL:  POST /solicitud/44/rechazar (Accion explicita - cuerpo vacio)
 ```
 
 ## 🟣 5. Obtener todas las solicitudes
+
+???????????
+FALTA IMPLEMETAR QUERY PARAMS PARA FILTRAR POR ESTADO, POR ESTADO Y USUARIOm POR USUARIO (ej: solo admin ve todas, solicitante ve solo las suyas)
+Acceso: 🔒 Protegido | Rol permitido: SOLICITANTE, DEMO, ADMIN, SUPERADMIN ??? 
+     ## 🟣 6. ??????????????
+???????????
+
+Acceso: 🔒 Protegido | Rol permitido: DEMO, ADMIN, SUPERADMIN
+
 No modifica estado, solo devuelve información. Es un GET tradicional.
 El endpoint es GET /solicitud retorna una lista de solicitudes
 El endpoint soporta query params para filtrar, paginar y ordenar los resultados.
 
+Especificaciones técnicas:
+URL: /solicitud
+Método: GET
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL: GET /solicitud
@@ -213,11 +330,19 @@ GET /solicitud/todas → devuelve todas las solicitudes sin paginar ni filtrar
 
 
 ## 🟣 6. Admin carga cotización
+
+Acceso: 🔒 Protegido | Rol permitido: DEMO, ADMIN, SUPERADMIN
+
 Verifica que solicitud esté en EN_REVISION
 Crea cotización en `COTIZACION_NUEVA`
 Cambia solicitud → `COTIZACION_CARGADA`
 Registra historial
 Devuelve respuesta
+
+Especificaciones técnicas:
+URL: /solicitud/:solicitudId/cotizacion
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL:  POST /solicitud/25/cotizacion
@@ -295,19 +420,27 @@ En realidad no escucha sola.
 El backend lo hace en la misma transacción.
 
 ## 🔴 7. Solicitante rechaza cotización (requiere comentario obligatorio)
+
+Acceso: 🔒 Protegido | Rol permitido: SOLICITANTE, DEMO, ADMIN, SUPERADMIN
+
 Se verifica que la cotización esté en estado válido (ej: COTIZACION_NUEVA)
 Cambia cotización → COTIZACION_RECHAZADA
 Cambia solicitud → EN_REVISION
 Registra comentario
 Devuelve respuesta
 
+Especificaciones técnicas:
+URL: /cotizacion/:cotizacionId/rechazar
+Método: POST
+Header: Authorization: Bearer <token>
+
 * JSON de solicitud (request)
 URL:  POST /cotizacion/26/rechazar
+```json
 {
   "comentario": "La tarifa está muy alta, por favor revisar otra opción."
 }
-
-
+```
 * JSON de respuesta (response)
 ```json
 {
@@ -339,11 +472,19 @@ URL:  POST /cotizacion/26/rechazar
 ```
 
 ## 🔴 8. COTIZACION reemplaza otra (sea por un rechazo o novedad)
+
+Acceso: 🔒 Protegido | Rol permitido: DEMO, ADMIN, SUPERADMIN
+
 Reglas:
 Cotizacion anterior → `COTIZACION_ANULADA`
 Cotización nueva en: `COTIZACION_NUEVA`
 la cotizacion nueva debe referenciar la cotizacion reemplazada
 Pero además, la solicitud cambia a: `COTIZACION_CARGADA`
+
+Especificaciones técnicas:
+URL: /solicitud/:solicitudId/cotizacion/:cotizacionId/reemplazar
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL: POST /solicitud/:solicitudId/cotizacion/:cotizacionId/reemplazar
@@ -455,7 +596,15 @@ Cambia solicitud → COTIZACION_CARGADA
 Registra historial
 
 ## 🟠 9. Generar Novedad en cotizacion (requiere comentario obligatorio)
+
+Acceso: 🔒 Protegido | Rol permitido: SOLICITANTE, DEMO, ADMIN, SUPERADMIN
+
 Se genera una `NOVEDAD` tanto en cotizacion como en solicitud
+
+Especificaciones técnicas:
+URL: /cotizacion/:cotizacionId/novedad
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL: POST /cotizacion/95/novedad
@@ -536,12 +685,20 @@ const rol = req.user.rol;
 
 
 ## 🔴 10. COTIZACION fue revizada y se conserva  (((((POR IMPLMETAR)))))
+
+Acceso: 🔒 Protegido | Rol permitido: DEMO, ADMIN, SUPERADMIN
+
 El admin revisa, decide NO crear una nueva cotización.
 La misma cotización vuelve a estar activa.
 Cotización → vuelve a `COTIZACION_NUEVA`
 Solicitud → `COTIZACION_CARGADA`
 Registra historial
 Devuelve respuesta
+
+Especificaciones técnicas:
+URL: /cotizacion/:cotizacionId/conservar
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL:  POST /cotizacion/26/conservar
@@ -580,6 +737,9 @@ nota: por tanto, no hay cotizacion_anterior_id.
 
 
 ## 🔴 11. Usuario selecciona Cotización (Primaria y opcional Secundaria)
+
+Acceso: 🔒 Protegido | Rol permitido: SOLICITANTE, DEMO, ADMIN, SUPERADMIN
+
 No son estados “bloqueantes”, solo indican preferencia del usuario.
 
 El usuario debe:
@@ -598,6 +758,11 @@ Reglas:
 - Las demás quedan en `COTIZACION_DESCARTADA`
 - Solicitud pasa a: `EN_REVISION`
 - Registrar historial
+
+Especificaciones técnicas:
+URL: /solicitud/:solicitudId/seleccionar-cotizacion
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 
@@ -652,12 +817,20 @@ POST /solicitud/25/seleccionar-cotizacion
 ```
 
 ## 🟢 12. Se genera el boleto
+
+Acceso: 🔒 Protegido | Rol permitido: DEMO, ADMIN, SUPERADMIN
+
 Reglas:
 * Cotización elegida → `SELECCIONADA`
 * Cotizaciones no elegidas → `COTIZACION_ANULADA`
 * Solicitud → `BOLETO_CARGADO`
 * Boleto →  `BOLETO_EMITIDO`
 * Registra historial
+
+Especificaciones técnicas:
+URL: /cotizacion/:cotizacionId/boleto
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL:  POST /cotizacion/75/boleto
@@ -777,6 +950,9 @@ URL:  POST /cotizacion/75/boleto
 
 
 ## 🔁 13. Boleto reemplaza otro  (po ejemplo por novedad)
+
+Acceso: 🔒 Protegido | Rol permitido: DEMO, ADMIN, SUPERADMIN
+
 Reglas:
 Esto ocurre si la NOVEDAD afecta el valor de la entidad 'boleto'
 Boleto anterior → `BOLETO_ANULADO`
@@ -784,6 +960,11 @@ Boleto nuevo → `BOLETO_EMITIDO`
 El boleto nuevo debe referenciar al boleto reemplazado
 Solicitud → `BOLETO_CARGADO`
 nota: estidad genera creación de recurso con referencia opcional (pero si es un remplazo es obligatorio).
+
+Especificaciones técnicas:
+URL: /cotizacion/:cotizacionId/boleto
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL:  POST /cotizacion/75/boleto   (La diferencia esta en el BODY)
@@ -898,6 +1079,9 @@ El Boleto requiere de la data nuevamente porque es documento legal emitido contr
 ```
 
 ## 🟠 14. Generar Novedad en Boleto (requiere comentario obligatorio)
+
+Acceso: 🔒 Protegido | Rol permitido: SOLICITANTE, DEMO, ADMIN, SUPERADMIN
+
 Se genera una `NOVEDAD` tanto en el boleto como en la solicitud.
 
 ### Reglas:
@@ -907,6 +1091,11 @@ Se genera una `NOVEDAD` tanto en el boleto como en la solicitud.
 - Se debe registrar comentario obligatorio
 - Registrar historial
 - No se crea un nuevo boleto en este punto
+
+Especificaciones técnicas:
+URL: /boleto/:boletoId/novedad
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL:
@@ -959,6 +1148,9 @@ Se obtiene del usuario autenticado (token JWT o sesión).
 ```
 
 ## 🔁 15. Boleto revisado y se conserva
+
+Acceso: 🔒 Protegido | Rol permitido: DEMO, ADMIN, SUPERADMIN
+
 El boleto sale del estado `NOVEDAD` y vuelve a `BOLETO_EMITIDO`.
 
 Reglas:
@@ -970,6 +1162,10 @@ Reglas:
 - No se modifica la cotización
 - Guardar historial
 
+Especificaciones técnicas:
+URL: /boleto/:boletoId/conservar
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL:
@@ -1006,7 +1202,15 @@ Opcional (comentario del admin):
 ```
 
 ## 🔁 15. CAMBIO DE ESTADO DE DETALLES DEL VUELO
+
+Acceso: 🔒 Protegido | Rol permitido: SOLICITANTE, DEMO, ADMIN, SUPERADMIN
+
 Los estados de los segmentos del vuelo pueden cambiar (ej: por novedad, cambio de aerolínea, cambio de fecha, etc) sin que esto implique necesariamente un cambio de estado del boleto completo. Esto permite reflejar cambios específicos en los detalles del vuelo sin afectar el estado general del boleto.
+
+Especificaciones técnicas:
+URL: /boleto/segmento/:segmentoId/estado
+Método: POST
+Header: Authorization: Bearer <token>
 
 * JSON de solicitud (request)
 URL: PATCH /boleto/segmento/:segmentoId/estado
@@ -1050,14 +1254,9 @@ POST
   }
 ```
 
-
-Duda:
-2. del json de respuesta de "Usuario registrado correctamente" elimine "rol": "ADMIN", pero quizas sea util dejarlo para mostrarlo en el frontend? (bueno veo que en la respuesta sugerida lo agregastes); ahora bien en el json de request se es necesario que el rol venga del frontend? o se asigna por defecto a 'SOLICITANTE' y solo un admin puede cambiarlo posteriormente desde 'PATCH /users/:id/rol' ? 
-
-
-
-
 ## ✅ 16. Solicitante conforme
+
+Acceso: 🔒 Protegido | Rol permitido: SOLICITANTE, DEMO, SUPERADMIN
 
 El solicitante confirma que el boleto emitido es correcto y el proceso finaliza.
 
@@ -1071,8 +1270,12 @@ El solicitante confirma que el boleto emitido es correcto y el proceso finaliza.
 - No se pueden generar nuevas novedades
 - No se pueden emitir nuevos boletos
 
-* JSON de solicitud (request)
+Especificaciones técnicas:
+URL: /boleto/:boletoId/confirmar
+Método: POST
+Header: Authorization: Bearer <token>
 
+* JSON de solicitud (request)
 URL:
 POST /boleto/75/confirmar
 Opcional (comentario del solicitante):
@@ -1108,27 +1311,10 @@ Opcional (comentario del solicitante):
 
 ```
 
----
-
-# 🧠 Lo importante arquitectónicamente
-
-Las entidades no “escuchen”.
-El flujo:
-- Acción
-→ Backend ejecuta lógica
-→ Actualiza múltiples entidades
-→ Devuelve evento estructurado
-
-* Sistema orientado a acciones
-* Eventos estructurados en JSON
-* Backend actualiza entidades relacionadas
-* Respuestas consistentes
-* Todo dentro de una misma transacción. transaction()
----
-
-
 
 ## 🟡 ??. Creacion de Usuario
+
+Acceso: 🔒 Protegido | Rol permitido: SUPERADMIN
 
 El registro es un proceso administrativo que vive en el módulo de Usuarios, donde la contraseña se transforma en un hash antes de tocar la base de datos.
 
@@ -1136,6 +1322,11 @@ Recibir datos: Obtener el objeto con el username y el password.
 Generar Salt y Hash: Usar bcrypt.hash(password, 5).
 Guardar en Prisma: Crear el registro reemplazando el password original por el hash.
 Limpiar respuesta: Retornar el usuario creado sin el campo password por seguridad.
+
+Especificaciones técnicas:
+URL: /usuario
+Método: POST
+Header: Authorization: Bearer <token>
 
 URL:
 POST /usuario
@@ -1189,6 +1380,10 @@ Otras rutas relacionadas con usuarios (CRUD básico, sin olvidar la seguridad en
 GET    /users / con paginación y filtros igual que solicitud
 GET    /users/:id
 
+## 🟡 ??. Actualización de Usuario
+
+Acceso: 🔒 Protegido | Rol permitido: SUPERADMIN
+
 PATCH  /users/:id
 Para actualizar datos del usuario, excepto contraseña y rol (que podrían tener endpoints específicos por seguridad)
 * JSON de solicitud (request)
@@ -1221,9 +1416,20 @@ Es importante proteger esta ruta para que solo el propio usuario o un admin pued
 @UseGuards(JwtAuthGuard, RolesGuard) // Protege la ruta
 ..
 
-PATCH /users/:id/rol 
+## 🟡 ??. Actualización de Rol de Usuario
+
+Acceso: 🔒 Protegido | Rol permitido: SUPERADMIN
+
 Para actualizar solo el rol del usuario
+
+Especificaciones técnicas:
+URL: /users/:id/rol
+Método: PATCH
+Header: Authorization: Bearer <token>
+
+
 * JSON de solicitud (request)
+PATCH /users/:id/rol 
 ```json
 
 {
@@ -1246,9 +1452,21 @@ nota: Solo un admin puede cambiar roles, y no puede cambiar su propio rol para e
 }
 ```
 
-DELETE /users/:id
+## 🟡 ??. Eliminación de Usuario
+
+Acceso: 🔒 Protegido | Rol permitido: SUPERADMIN
+
 Para eliminar un usuario, o mejor dicho, para desactivarlo sin borrar su registro como tal, se puede usar disabled_at
+
+Especificaciones técnicas:
+URL: /users/:id
+Método: DELETE
+Header: Authorization: Bearer <token>
+
+
 * JSON de solicitud (request)
+DELETE /users/:id
+
 ```json
 {
   "reason": "El usuario ya no forma parte de la organización."
@@ -1267,6 +1485,9 @@ Para eliminar un usuario, o mejor dicho, para desactivarlo sin borrar su registr
   }
 }
 ```
+## 🟡 ??. Actualización de Contraseña
+
+Acceso: 🔒 Protegido | Rol permitido: SUPERADMIN
 
 PATCH /usuario/:id/password
 Para actualizar la contraseña, se requiere la contraseña actual para validar que el usuario es quien dice ser, y luego se aplica el mismo proceso de hash que en el registro.
@@ -1335,11 +1556,35 @@ cliente recibe token para autenticación en futuras solicitudes
 }
 ```
 
+
+
+## 🟡 ??. Refresco de Token
+URL:
+POST /auth/refresh-token
+
+
 Otras rutas relacionadas con autenticación:
 POST /auth/login
 POST /auth/refresh-token
 POST /auth/logout (opcional)
 
+
+
+# 🧠 Lo importante arquitectónicamente
+
+Las entidades no “escuchen”.
+El flujo:
+- Acción
+→ Backend ejecuta lógica
+→ Actualiza múltiples entidades
+→ Devuelve evento estructurado
+
+* Sistema orientado a acciones
+* Eventos estructurados en JSON
+* Backend actualiza entidades relacionadas
+* Respuestas consistentes
+* Todo dentro de una misma transacción. transaction()
+---
 
 
 

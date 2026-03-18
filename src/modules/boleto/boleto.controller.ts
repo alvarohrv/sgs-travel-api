@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, Request, UseGuards } from '@nestjs/common';
 import { BoletoService } from './boleto.service';
 import { EmitirBoletoDto } from './dto/emitir-boleto.dto';
 import { NovedadBoletoDto } from './dto/novedad-boleto.dto';
@@ -7,6 +7,8 @@ import { ConfirmarBoletoDto } from './dto/confirmar-boleto.dto';
 import { ReemplazarBoletoDto } from './dto/reemplazar-boleto.dto';
 
 import { Roles } from '../../auth/decorators/roles.decorator'
+import { DemoPolicy } from '../../auth/decorators/demo-policy.decorator'
+import { DemoPolicyGuard } from '../../auth/guards/demo-policy.guard'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../../auth/guards/roles.guard'
 
@@ -19,7 +21,7 @@ export class BoletoController {
   DESCRIPCIÓN: Admin emite un boleto a partir de una cotización aprobada. El boleto queda en estado "EMITIDO". Si se proporciona un reemplaza_boleto_id, el nuevo boleto reemplaza al anterior y este último queda anulado. La solicitud asociada a la cotización pasa a estado "BOLETO EMITIDO".
   ENDPOINT POST /cotizacion/:cotizacionId/boleto
               Ej: POST http://localhost:3000/cotizacion/7/boleto
-  BODY   ((((((((( ESTO CAMBO!!!!!!!!!!!!!!!! ))))))))
+  BODY   
  {
   "reemplaza_boleto_id": null,
   "cobertura": "IDA_Y_VUELTA",   
@@ -121,14 +123,16 @@ export class BoletoController {
   // POST /cotizacion/:cotizacionId/boleto
   @Post('cotizacion/:cotizacionId/boleto')
   @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, DemoPolicyGuard)
+  @DemoPolicy({ resource: 'boleto', action: 'create' })
   async emitirBoleto(
     @Param('cotizacionId') cotizacionId: string,
     @Body() data: EmitirBoletoDto,
+    @Request() req: any,
   ) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticacion
-    const usuarioId = 1;
-    return this.boletoService.emitirBoleto(Number(cotizacionId), usuarioId, data);
+    const usuarioId = req.user.id;
+    const userRole = req.user.role;
+    return this.boletoService.emitirBoleto(Number(cotizacionId), usuarioId, data, userRole);
   }
 
 
@@ -173,9 +177,11 @@ export class BoletoController {
   async generarNovedad(
     @Param('id') id: string,
     @Body() data: NovedadBoletoDto,
+    @Request() req: any,
   ) {
-    const usuarioId = 1;
-    return this.boletoService.generarNovedad(Number(id), usuarioId, data);
+    const usuarioId = req.user.id;
+    const userRole = req.user.role;
+    return this.boletoService.generarNovedad(Number(id), usuarioId, data, userRole);
   }
 
 
@@ -284,14 +290,16 @@ RESPUESTA
   // POST /boleto/:boletoId/reemplazar
   @Post('boleto/:boletoId/reemplazar')
   @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, DemoPolicyGuard)
+  @DemoPolicy({ resource: 'boleto', action: 'create' })
   async reemplazarBoleto(
     @Param('boletoId') boletoId: string,
     @Body() data: ReemplazarBoletoDto,
+    @Request() req: any,
   ) {
-    // TODO: Obtener usuarioId del token JWT cuando se implemente autenticacion
-    const usuarioId = 1;
-    return this.boletoService.reemplazarBoleto(Number(boletoId), usuarioId, data);
+    const usuarioId = req.user.id;
+    const userRole = req.user.role;
+    return this.boletoService.reemplazarBoleto(Number(boletoId), usuarioId, data, userRole);
   }
 
 
@@ -337,9 +345,11 @@ RESPUESTA
   async conservarBoleto(
     @Param('id') id: string,
     @Body() data: ConservarBoletoDto,
+    @Request() req: any,
   ) {
-    const usuarioId = 1;
-    return this.boletoService.conservarBoleto(Number(id), usuarioId, data);
+    const usuarioId = req.user.id;
+    const userRole = req.user.role;
+    return this.boletoService.conservarBoleto(Number(id), usuarioId, data, userRole);
   }
 
   /*
@@ -382,9 +392,11 @@ RESPUESTA
   async confirmarBoleto(
     @Param('id') id: string,
     @Body() data: ConfirmarBoletoDto,
+    @Request() req: any,
   ) {
-    const usuarioId = 1;
-    return this.boletoService.confirmarBoleto(Number(id), usuarioId, data);
+    const usuarioId = req.user.id;
+    const userRole = req.user.role;
+    return this.boletoService.confirmarBoleto(Number(id), usuarioId, data, userRole);
   }
 }
 

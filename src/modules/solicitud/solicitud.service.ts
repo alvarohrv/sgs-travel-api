@@ -1,8 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../../prisma/prisma.service'
+import { DemoPolicyService } from '../../auth/demo-policy.service'
+import { CerrarSolicitudDto } from './dto/cerrar-solicitud.dto'
 import { CrearSolicitudDto } from './dto/crear-solicitud.dto'
 import { EliminarSolicitudDto } from './dto/eliminar-solicitud.dto'
+import { EliminarSolicitudesUsuarioDto } from './dto/eliminar-solicitudes-usuario.dto'
 import { EliminarTodasSolicitudesDto } from './dto/eliminar-todas-solicitudes.dto'
 import { IniciarRevisionDto } from './dto/iniciar-revision.dto'
 import { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto'
@@ -22,12 +25,21 @@ export class SolicitudService {
     'solicitud',
   ]
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly demoPolicyService: DemoPolicyService,
+  ) {}
 
   /**
    * 1️⃣ Crear solicitud - Estado inicial: PENDIENTE
    */
-  async crearSolicitud(data: CrearSolicitudDto, usuarioId: number): Promise<RespuestaApiEstandar> {
+  async crearSolicitud(
+    data: CrearSolicitudDto,
+    usuarioId: number,
+    userRole?: string,
+  ): Promise<RespuestaApiEstandar> {
+    await this.demoPolicyService.assertCanCreate('solicitud', usuarioId, userRole)
+
     // Buscar estado PENDIENTE por slug
     const estadoPendiente = await this.prisma.estado_solicitud.findUnique({
       where: { slug: 'pendiente' }
@@ -77,6 +89,8 @@ export class SolicitudService {
         preferencia_aerolinea: data.ruta.preferencia_aerolinea ?? null,
       }
     })
+
+    await this.demoPolicyService.incrementUsage('solicitud', usuarioId, userRole)
 
     return {
       success: true,
@@ -274,8 +288,14 @@ export class SolicitudService {
   async iniciarRevision(
     solicitudId: number, 
     usuarioId: number, 
-    data?: IniciarRevisionDto
+    data?: IniciarRevisionDto,
+    userRole?: string,
   ): Promise<RespuestaApiEstandar> {
+    await this.demoPolicyService.assertSolicitudOwnershipIfDemo(
+      solicitudId,
+      usuarioId,
+      userRole,
+    )
 
     //Definimos qué estados pueden pasar a "EN REVISION"
     const estadosPermitidos = ['pendiente', 'cotizacion_rechazada', 'novedad','rechazada'];
@@ -347,8 +367,14 @@ export class SolicitudService {
   async rechazarSolicitud(
     solicitudId: number,
     usuarioId: number,
-    data: RechazarSolicitudDto
+    data: RechazarSolicitudDto,
+    userRole?: string,
   ): Promise<RespuestaApiEstandar> {
+    await this.demoPolicyService.assertSolicitudOwnershipIfDemo(
+      solicitudId,
+      usuarioId,
+      userRole,
+    )
     
     // Validar que el comentario no esté vacío
     if (!data.comentario || data.comentario.trim() === '') {
@@ -428,12 +454,155 @@ export class SolicitudService {
   }
 
   /**
+   * Cerrar solicitud de forma segura (soft-close con closed_at)
+   */
+  async cerrarSolicitud(
+    solicitudId: number,
+    data: CerrarSolicitudDto,
+    userId: number,
+    userRole?: string,
+  ): Promise<RespuestaApiEstandar> {
+    if (!Number.isInteger(solicitudId) || solicitudId <= 0) {
+      throw new BadRequestException('El ID de la solicitud debe ser un número entero positivo')
+    }
+
+    if (data.confirmacion?.trim().toUpperCase() !== 'CERRAR') {
+      throw new BadRequestException('Debe enviar la confirmación exacta "CERRAR" para cerrar la solicitud')
+    }
+
+    await this.demoPolicyService.assertSolicitudOwnershipIfDemo(
+      solicitudId,
+      userId,
+      userRole,
+    )
+
+    const solicitud = await this.prisma.solicitud.findUnique({
+      where: { id: solicitudId },
+      select: {
+        id: true,
+        radicado: true,
+        closed_at: true,
+        estado_actual_id: true,
+      },
+    })
+
+    if (!solicitud) {
+      throw new NotFoundException(`Solicitud con ID ${solicitudId} no encontrada`)
+    }
+
+    if (solicitud.closed_at) {
+      throw new BadRequestException('La solicitud ya se encuentra cerrada')
+    }
+
+    const estadoCerrada = await this.prisma.estado_solicitud.findUnique({
+      where: { slug: 'cerrada' },
+    })
+
+    const ahora = new Date()
+    const estadoFinalId = estadoCerrada?.id ?? solicitud.estado_actual_id
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.solicitud.update({
+        where: { id: solicitudId },
+        data: {
+          closed_at: ahora,
+          ...(estadoCerrada ? { estado_actual_id: estadoCerrada.id } : {}),
+        },
+      })
+
+      await tx.historial_estado_solicitud.create({
+        data: {
+          solicitud_id: solicitudId,
+          estado_id: estadoFinalId,
+          usuario_id: userId,
+          observacion:
+            data.motivo?.trim() || 'Solicitud cerrada de forma manual con soft-close',
+        },
+      })
+    })
+
+    await this.demoPolicyService.decrementUsage('solicitud', userId, userRole)
+
+    const cotizacionesRelacionadas = await this.prisma.cotizacion.findMany({
+      where: { solicitud_id: solicitudId },
+      include: {
+        estado_cotizacion: true,
+        boleto: {
+          include: {
+            estado_boleto: true,
+          },
+        },
+      },
+      orderBy: { id: 'asc' },
+    })
+
+    const boletos = cotizacionesRelacionadas.flatMap((cotizacion) =>
+      cotizacion.boleto.map((boleto) => ({
+        boleto_id: boleto.id,
+        estado_boleto: boleto.estado_boleto.estado,
+        cotizacion_asociada: {
+          id: cotizacion.id,
+          estado: cotizacion.estado_cotizacion.estado,
+          slug: cotizacion.estado_cotizacion.slug,
+        },
+      })),
+    )
+
+    const cotizacionesSinBoleto = cotizacionesRelacionadas
+      .filter((cotizacion) => cotizacion.boleto.length === 0)
+      .map((cotizacion) => ({
+        cotizacion_id: cotizacion.id,
+        estado: cotizacion.estado_cotizacion.estado,
+        slug: cotizacion.estado_cotizacion.slug,
+      }))
+
+    const resumenCierre =
+      boletos.length > 0
+        ? {
+            boletos,
+            cotizaciones_sin_boleto: cotizacionesSinBoleto,
+          }
+        : {
+            cotizaciones: cotizacionesRelacionadas.map((cotizacion) => ({
+              cotizacion_id: cotizacion.id,
+              estado: cotizacion.estado_cotizacion.estado,
+              slug: cotizacion.estado_cotizacion.slug,
+            })),
+          }
+
+    return {
+      success: true,
+      message: 'Solicitud cerrada correctamente',
+      data: {
+        solicitud_id: solicitud.id,
+        radicado: solicitud.radicado,
+        closed_at: ahora,
+        motivo: data.motivo?.trim() || null,
+        resumen_cierre: resumenCierre,
+      },
+      event: {
+        type: 'SOLICITUD_CERRADA',
+      },
+    }
+  }
+
+  /**
    * Eliminar físicamente una solicitud y todos sus registros dependientes
    */
   async eliminarSolicitudCompletamente(
     solicitudId: number,
     data: EliminarSolicitudDto,
+    userId?: number,
+    userRole?: string,
   ): Promise<RespuestaApiEstandar> {
+    if (typeof userId === 'number') {
+      await this.demoPolicyService.assertSolicitudOwnershipIfDemo(
+        solicitudId,
+        userId,
+        userRole,
+      )
+    }
+
     if (!Number.isInteger(solicitudId) || solicitudId <= 0) {
       throw new BadRequestException('El ID de la solicitud debe ser un número entero positivo')
     }
@@ -468,6 +637,8 @@ export class SolicitudService {
     const boletoIds = solicitud.cotizacion.flatMap((cotizacion) =>
       cotizacion.boleto.map((boleto) => boleto.id)
     )
+    const cotizacionesEliminadas = cotizacionIds.length
+    const boletosEliminados = boletoIds.length
 
     const eliminados = await this.prisma.$transaction(async (tx) => {
       const resumen = await this.eliminarDependenciasSolicitudes(
@@ -486,6 +657,22 @@ export class SolicitudService {
         solicitudes: 1,
       }
     })
+
+    if (typeof userId === 'number') {
+      await this.demoPolicyService.decrementUsage('solicitud', userId, userRole)
+      await this.demoPolicyService.decrementUsageByAmount(
+        'cotizacion',
+        userId,
+        cotizacionesEliminadas,
+        userRole,
+      )
+      await this.demoPolicyService.decrementUsageByAmount(
+        'boleto',
+        userId,
+        boletosEliminados,
+        userRole,
+      )
+    }
 
     return {
       success: true,
@@ -584,6 +771,117 @@ export class SolicitudService {
     }
   }
 
+  /**
+   * Eliminar físicamente todas las solicitudes de un usuario y sus registros dependientes
+   */
+  async eliminarSolicitudesPorUsuario(
+    usuarioId: number,
+    data: EliminarSolicitudesUsuarioDto,
+  ): Promise<RespuestaApiEstandar> {
+    if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
+      throw new BadRequestException('El ID del usuario debe ser un número entero positivo')
+    }
+
+    if (data.confirmacion?.trim().toUpperCase() !== 'ELIMINAR_USUARIO') {
+      throw new BadRequestException('Debe enviar la confirmación exacta "ELIMINAR_USUARIO" para borrar por usuario')
+    }
+
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      select: {
+        id: true,
+        nombre: true,
+        username: true,
+        rol: true,
+      },
+    })
+
+    if (!usuario) {
+      throw new NotFoundException(`Usuario con ID ${usuarioId} no encontrado`)
+    }
+
+    const solicitudes = await this.prisma.solicitud.findMany({
+      where: { usuario_id: usuarioId },
+      select: {
+        id: true,
+        radicado: true,
+        cotizacion: {
+          select: {
+            id: true,
+            boleto: {
+              select: {
+                id: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    const solicitudIds = solicitudes.map((solicitud) => solicitud.id)
+    const cotizacionIds = solicitudes.flatMap((solicitud) =>
+      solicitud.cotizacion.map((cotizacion) => cotizacion.id),
+    )
+    const boletoIds = solicitudes.flatMap((solicitud) =>
+      solicitud.cotizacion.flatMap((cotizacion) =>
+        cotizacion.boleto.map((boleto) => boleto.id),
+      ),
+    )
+
+    const eliminados = await this.prisma.$transaction(async (tx) => {
+      const resumen = await this.eliminarDependenciasSolicitudes(
+        tx,
+        solicitudIds,
+        cotizacionIds,
+        boletoIds,
+      )
+
+      const solicitudesEliminadas = solicitudIds.length
+        ? await tx.solicitud.deleteMany({
+            where: {
+              id: {
+                in: solicitudIds,
+              },
+            },
+          })
+        : { count: 0 }
+
+      return {
+        ...resumen,
+        solicitudes: solicitudesEliminadas.count,
+      }
+    })
+
+    let indicesReiniciados: string[] = []
+
+    if (data.reiniciar_indices) {
+      indicesReiniciados = await this.reiniciarAutoIncrementTablasSolicitudes()
+    }
+
+    return {
+      success: true,
+      message: 'Solicitudes del usuario eliminadas completamente de la base de datos',
+      data: {
+        usuario: {
+          id: usuario.id,
+          nombre: usuario.nombre,
+          username: usuario.username,
+          rol: usuario.rol,
+        },
+        total_solicitudes_encontradas: solicitudIds.length,
+        radicados_eliminados: solicitudes.map((solicitud) => solicitud.radicado),
+        motivo: data.motivo?.trim() || null,
+        reiniciar_indices: Boolean(data.reiniciar_indices),
+        tablas_con_indices_reiniciados: indicesReiniciados,
+        eliminados,
+      },
+      event: {
+        type: 'SOLICITUDES_USUARIO_ELIMINADAS_COMPLETAMENTE',
+      },
+    }
+  }
+
+  /////  helper de borrado en cascada para eliminar dependencias de solicitudes, cotizaciones y boletos
   private async eliminarDependenciasSolicitudes(
     tx: Prisma.TransactionClient,
     solicitudIds: number[],
