@@ -11,9 +11,15 @@ export class DetalleReemplazoCotizacionDto {
   vuelta?: DetalleVueloReemplazoDto; // opcional para SOLO_IDA
 }
 
+export class RutaReemplazoCotizacionDto {
+  origen: string;
+  destino: string;
+}
+
 export class ReemplazarCotizacionDto {
   valor_total: number;
   moneda: string;
-  cobertura: string; // "COMPLETA" | "SOLO_IDA"
+  cobertura: 'IDA' | 'IDA_Y_VUELTA' | 'RETORNO';
+  ruta: RutaReemplazoCotizacionDto;
   detalle?: DetalleReemplazoCotizacionDto;
 }

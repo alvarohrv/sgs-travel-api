@@ -1,3 +1,20 @@
+
+
+  ////???? PENDIENTE PROBAR ENDPOINT DE CIERRE Y GENERAR UN ENDPOINT DE REAPERTURA (solo SUPERADMIN) PARA DESMARCAR closed_at Y VOLVER A ABRIR LA SOLICITUD.
+
+
+  ////????? de las peticiones GET desacoplar el atributo 'historial_estado_solicitud' y crear un endpoint específico para consultar el historial de estados de una solicitud, por ejemplo: GET /solicitud/:id/historial. Esto evitaría que cada consulta de solicitud traiga todo el historial, lo cual puede ser innecesario en muchos casos y afectar el rendimiento.
+
+  /////????? PENDIENTE en la solictud '8' rechazar, remplazar, re abrir, crear varias cotizaciones, novedad, seleccionar, emitir boleto, etc... y luego generar GET para validar que se esta generando en las respuestas (especifica de esa solicitud.
+
+
+    ////???? PENDIENTE PROBAR DE NUEVO ENDPOINT GET para documentar finalmente luego de los cambios!!!!!!!!!!!!
+
+
+
+
+
+
 // PENDIENTE
 // -- volver a probar endpoint
 // -- validar uso de los campos nuevos de auditoria (created_at, updated_at, closed_at disabled_at)
@@ -76,7 +93,6 @@ import { CrearSolicitudDto } from './dto/crear-solicitud.dto'
 import { EliminarSolicitudDto } from './dto/eliminar-solicitud.dto'
 import { EliminarSolicitudesUsuarioDto } from './dto/eliminar-solicitudes-usuario.dto'
 import { EliminarTodasSolicitudesDto } from './dto/eliminar-todas-solicitudes.dto'
-import { IniciarRevisionDto } from './dto/iniciar-revision.dto'
 import { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto'
 //import { audit } from 'rxjs'
 
@@ -135,7 +151,7 @@ export class SolicitudController {
     "data": {
         "solicitud": {
             "id": 7,
-            "radicado": "EMP002-7",
+            "radicado": "EMP003-7",
             "estado": "PENDIENTE",
             "tipo_de_vuelo": "IDA_Y_VUELTA",
             "ruta": {
@@ -147,7 +163,7 @@ export class SolicitudController {
                 "ida": "2026-03-10",
                 "vuelta": "2026-03-20"
             },
-            "created_at": "2026-03-11T22:36:34.000Z"
+            "created_at": "2026-03-20T15:38:22.000Z"
         }
     },
     "event": {
@@ -163,33 +179,31 @@ export class SolicitudController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   async iniciarRevision(
     @Param('id') id: string,
-    @Body() data: IniciarRevisionDto,
     @Request() req: any,
   ) {
     const usuarioId = req.user.id
     const userRole = req.user.role
-    return this.solicitudService.iniciarRevision(Number(id), usuarioId, data, userRole)
+    return this.solicitudService.iniciarRevision(Number(id), usuarioId, userRole)
   }
    /*
  DESCRIPCION: Cuando un administrador quiere iniciar la revisión de una solicitud, envía un POST a /solicitud/:id/iniciar-revision, donde :id es el ID de la solicitud que quiere revisar. El controlador captura ese ID a través del decorador @Param('id') y también puede recibir un cuerpo opcional con una observación. Luego, llama al método iniciarRevision del servicio, pasando el ID de la solicitud, el usuarioId del admin (que por ahora es fijo) y la observación. El servicio se encarga de cambiar el estado de la solicitud a EN_REVISION y registrar el evento correspondiente.
  ENDPOINT: POST /solicitud/:id/iniciar-revision
             Ejemplo: POST http://localhost:3000/solicitud/7/iniciar-revision
  BODY:
- {
-  "observacion": "Revisión iniciada por el admin _S05"
- }
- RESPUESTA:
-{
-    "success": true,
-    "message": "Solicitud en revisión",
-    "data": {
-        "solicitud_id": 7,
-        "estado": "EN REVISION"
-    },
-    "event": {
-        "type": "SOLICITUD_EN_REVISION"
-    }
-}
+
+  RESPUESTA:
+  {
+      "success": true,
+      "message": "Solicitud en revisión",
+      "data": {
+          "solicitud_id": 7,
+          "estado": "EN REVISION",
+          "msn_sistema": "Revisión iniciada por AR (EMP003)"
+      },
+      "event": {
+          "type": "SOLICITUD_EN_REVISION"
+      }
+  }
 */
 
   // 3️⃣ Rechazar solicitud (comentario obligatorio)
@@ -217,20 +231,27 @@ export class SolicitudController {
       "comentario": "Solicitud no cumple con los requisitos mínimos para ser procesada. Por favor revise la información y genera una nueva solicitud." 
     }
   RESPUESTA:
-  {
-      "success": true,
-      "message": "Solicitud rechazada correctamente",
-      "data": {
-          "solicitud_id": 1,
-          "estado": "RECHAZADA",
-          "comentario": "Solicitud no cumple con los requisitos mínimos para ser procesada. Por favor revise la información y genera una nueva solicitud."
-      },
-      "event": {
-          "type": "SOLICITUD_RECHAZADA"
-      }
-  }
-  */
+{
+    "success": true,
+    "message": "Solicitud rechazada correctamente",
+    "data": {
+        "solicitud_id": 1,
+        "estado": "RECHAZADA",
+        "comentario": "Solicitud no cumple con los requisitos mínimos para ser procesada. Por favor revise la información y genera una nueva solicitud."
+    },
+    "event": {
+        "type": "SOLICITUD_RECHAZADA"
+    }
+}
 
+  /// CASO DE ERROR (comentario obligatorio para rechazar, pero no se envió en el body)
+  {
+      "message": "El comentario es obligatorio para rechazar una solicitud",
+      "error": "Bad Request",
+      "statusCode": 400
+  }
+
+  */
 
   // ========== ENDPOINTS DE CONSULTA ==========
 
@@ -325,17 +346,14 @@ export class SolicitudController {
     if (id) {
       return this.solicitudService.buscarPorId(id)
     }
-
     // Convertimos los query params de string a número/tipo correcto.
     // Los query params SIEMPRE llegan como string desde la URL,
     // por eso usamos parseInt() y validamos que el valor sea válido.
     const pageNum  = parseInt(page  ?? '1',  10) // default: página 1
     const limitNum = parseInt(limit ?? '10', 10) // default: limite 10 por página
     const usuarioIdNum = usuarioId ? parseInt(usuarioId, 10) : undefined
-
     // Validamos que 'orden' sea exactamente 'asc' o 'desc', cualquier otro valor → 'desc'
     const ordenVal: 'asc' | 'desc' = orden === 'asc' ? 'asc' : 'desc'
-
     return this.solicitudService.obtenerSolicitudes(
       pageNum,
       limitNum,
@@ -344,17 +362,428 @@ export class SolicitudController {
       Number.isNaN(usuarioIdNum) ? undefined : usuarioIdNum,
     )
   }
+/*
+DESCRIPCION: Este endpoint es el más flexible para consultar solicitudes, ya que soporta múltiples query params para filtrar, paginar y ordenar los resultados. El controlador primero verifica si se recibió un query param 'id' (para una solicitud en particular), en cuyo caso llama al servicio para buscar esa solicitud específica por ID (ignorando cualquier otro filtro o paginación). Si no se recibió un 'id', entonces procesa los demás query params: convierte 'page' y 'limit' a números, valida el formato de 'orden' y convierte 'usuario_id' a número si se proporcionó. Luego, llama al método obtenerSolicitudes del servicio pasando todos esos parámetros para obtener una lista de solicitudes que cumplan con los criterios especificados.
 
+GET http://localhost:3000/solicitud?id=7
+RESPUESTA:
+{
+    "success": true,
+    "message": "Solicitud obtenida correctamente",
+    "data": {
+        "solicitud": {
+            "id": 1,
+            "radicado": "RAD-2026-010",
+            "usuario_id": 1,
+            "estado_actual_id": 1,
+            "tipo_de_vuelo": "IDA",
+            "created_at": "2026-03-17T14:02:42.000Z",
+            "updated_at": null,
+            "closed_at": null,
+            "usuario": {
+                "id": 1,
+                "nombre": "Carlos",
+                "username": "carlos",
+                "numero_documento": "87654321"
+            },
+            "estado_solicitud": {
+                "id": 1,
+                "estado": "PENDIENTE",
+                "slug": "pendiente",
+                "color_hexa_main": "#6c757d",
+                "color_hexa_sec": "#adb5bd",
+                "editable": true,
+                "created_at": "2026-03-17T13:54:07.000Z"
+            },
+            "cotizacion": [],
+            "historial_estado_solicitud": []
+        }
+    }
+}
+
+GET http://localhost:3000/solicitud?usuario_id=1
+RESPUESTA:
+{
+    "success": true,
+    "message": "Solicitudes obtenidas correctamente",
+    "data": {
+        "solicitudes": [
+            {
+                "id": 2,
+                "radicado": "RAD-2026-020",
+                "usuario_id": 1,
+                "estado_actual_id": 2,
+                "tipo_de_vuelo": "IDA_Y_VUELTA",
+                "created_at": "2026-03-17T14:02:43.000Z",
+                "updated_at": null,
+                "closed_at": null,
+                "usuario": {
+                    "id": 1,
+                    "nombre": "Carlos",
+                    "username": "carlos"
+                },
+                "estado_solicitud": {
+                    "id": 2,
+                    "estado": "EN REVISION",
+                    "slug": "en_revision",
+                    "color_hexa_main": "#0d6efd",
+                    "color_hexa_sec": "#6ea8fe",
+                    "editable": true,
+                    "created_at": "2026-03-17T13:54:07.000Z"
+                },
+                "cotizacion": []
+            },
+            {...},
+            {...,
+            {...},
+            {
+                "id": 1,
+                "radicado": "RAD-2026-010",
+                "usuario_id": 1,
+                "estado_actual_id": 1,
+                "tipo_de_vuelo": "IDA",
+                "created_at": "2026-03-17T14:02:42.000Z",
+                "updated_at": null,
+                "closed_at": null,
+                "usuario": {
+                    "id": 1,
+                    "nombre": "Carlos",
+                    "username": "carlos"
+                },
+                "estado_solicitud": {
+                    "id": 1,
+                    "estado": "PENDIENTE",
+                    "slug": "pendiente",
+                    "color_hexa_main": "#6c757d",
+                    "color_hexa_sec": "#adb5bd",
+                    "editable": true,
+                    "created_at": "2026-03-17T13:54:07.000Z"
+                },
+                "cotizacion": []
+            }
+        ],
+        "paginacion": {
+            "total": 5,
+            "totalPaginas": 1,
+            "paginaActual": 1,
+            "limit": 10,
+            "orden": "desc",
+            "filtros": {
+                "estado": null,
+                "usuario_id": 1
+            }
+        }
+    }
+}
+
+GET http://localhost:3000/solicitud?usuario_id=1?page=1&limit=2&orden=asc
+(mas antiguas primero)
+RESPUESTA:
+{
+    "success": true,
+    "message": "Solicitudes obtenidas correctamente",
+    "data": {
+        "solicitudes": [
+            {
+                "id": 1,
+                "radicado": "RAD-2026-010",
+                "usuario_id": 1,
+                "estado_actual_id": 1,
+                "tipo_de_vuelo": "IDA",
+                "created_at": "2026-03-17T14:02:42.000Z",
+                "updated_at": null,
+                "closed_at": null,
+                "usuario": {
+                    "id": 1,
+                    "nombre": "Carlos",
+                    "username": "carlos"
+                },
+                "estado_solicitud": {
+                    "id": 1,
+                    "estado": "PENDIENTE",
+                    "slug": "pendiente",
+                    "color_hexa_main": "#6c757d",
+                    "color_hexa_sec": "#adb5bd",
+                    "editable": true,
+                    "created_at": "2026-03-17T13:54:07.000Z"
+                },
+                "cotizacion": []
+            },
+            {
+                "id": 5,
+                "radicado": "RAD-2026-033",
+                "usuario_id": 1,
+                "estado_actual_id": 3,
+                "tipo_de_vuelo": "IDA_Y_VUELTA",
+                "created_at": "2026-03-17T14:02:43.000Z",
+                "updated_at": null,
+                "closed_at": null,
+                "usuario": {
+                    "id": 1,
+                    "nombre": "Carlos",
+                    "username": "carlos"
+                },
+                "estado_solicitud": {
+                    "id": 3,
+                    "estado": "COTIZACION CARGADA",
+                    "slug": "cotizacion_cargada",
+                    "color_hexa_main": "#ffc107",
+                    "color_hexa_sec": "#ffda6a",
+                    "editable": true,
+                    "created_at": "2026-03-17T13:54:07.000Z"
+                },
+                "cotizacion": [
+                    {
+                        "id": 3,
+                        "solicitud_id": 5,
+                        "cotizacion_anterior_id": null,
+                        "estado_actual_id": 1,
+                        "cobertura": "IDA_Y_VUELTA",
+                        "valor_total": "850",
+                        "created_at": "2026-03-17T14:02:43.000Z",
+                        "updated_at": null,
+                        "closed_at": null,
+                        "estado_cotizacion": {
+                            "id": 1,
+                            "estado": "COTIZACION NUEVA",
+                            "slug": "cotizacion_nueva",
+                            "editable": true,
+                            "created_at": "2026-03-17T13:54:07.000Z"
+                        }
+                    }
+                ]
+            }
+        ],
+        "paginacion": {
+            "total": 5,
+            "totalPaginas": 3,
+            "paginaActual": 1,
+            "limit": 2,
+            "orden": "asc",
+            "filtros": {
+                "estado": null,
+                "usuario_id": 1
+            }
+        }
+    }
+}
+
+GET http://localhost:3000/solicitud?usuario_id=1&estado=pendiente
+
+RESPUESTA:
+{
+    "success": true,
+    "message": "Solicitudes obtenidas correctamente",
+    "data": {
+        "solicitudes": [
+            {
+                "id": 1,
+                "radicado": "RAD-2026-010",
+                "usuario_id": 1,
+                "estado_actual_id": 1,
+                "tipo_de_vuelo": "IDA",
+                "created_at": "2026-03-17T14:02:42.000Z",
+                "updated_at": null,
+                "closed_at": null,
+                "usuario": {
+                    "id": 1,
+                    "nombre": "Carlos",
+                    "username": "carlos"
+                },
+                "estado_solicitud": {
+                    "id": 1,
+                    "estado": "PENDIENTE",
+                    "slug": "pendiente",
+                    "color_hexa_main": "#6c757d",
+                    "color_hexa_sec": "#adb5bd",
+                    "editable": true,
+                    "created_at": "2026-03-17T13:54:07.000Z"
+                },
+                "cotizacion": []
+            }
+        ],
+        "paginacion": {
+            "total": 1,
+            "totalPaginas": 1,
+            "paginaActual": 1,
+            "limit": 10,
+            "orden": "desc",
+            "filtros": {
+                "estado": "pendiente",
+                "usuario_id": 1
+            }
+        }
+    }
+}
+
+GET http://localhost:3000/solicitud?page=2&limit=3
+RESPUESTA:
+{
+    "success": true,
+    "message": "Solicitudes obtenidas correctamente",
+    "data": {
+        "solicitudes": [
+            {
+                "id": 4,
+                "radicado": "RAD-2026-032",
+                "usuario_id": 1,
+                "estado_actual_id": 3,
+                "tipo_de_vuelo": "IDA",
+                "created_at": "2026-03-17T14:02:43.000Z",
+                "updated_at": null,
+                "closed_at": null,
+                "usuario": {
+                    "id": 1,
+                    "nombre": "Carlos",
+                    "username": "carlos"
+                },
+                "estado_solicitud": {
+                    "id": 3,
+                    "estado": "COTIZACION CARGADA",
+                    "slug": "cotizacion_cargada",
+                    "color_hexa_main": "#ffc107",
+                    "color_hexa_sec": "#ffda6a",
+                    "editable": true,
+                    "created_at": "2026-03-17T13:54:07.000Z"
+                },
+                "cotizacion": [
+                    {
+                        "id": 2,
+                        "solicitud_id": 4,
+                        "cotizacion_anterior_id": null,
+                        "estado_actual_id": 1,
+                        "cobertura": "IDA",
+                        "valor_total": "850",
+                        "created_at": "2026-03-17T14:02:43.000Z",
+                        "updated_at": null,
+                        "closed_at": null,
+                        "estado_cotizacion": {
+                            "id": 1,
+                            "estado": "COTIZACION NUEVA",
+                            "slug": "cotizacion_nueva",
+                            "editable": true,
+                            "created_at": "2026-03-17T13:54:07.000Z"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": 5,
+                "radicado": "RAD-2026-033",
+                "usuario_id": 1,
+                "estado_actual_id": 3,
+                "tipo_de_vuelo": "IDA_Y_VUELTA",
+                "created_at": "2026-03-17T14:02:43.000Z",
+                "updated_at": null,
+                "closed_at": null,
+                "usuario": {
+                    "id": 1,
+                    "nombre": "Carlos",
+                    "username": "carlos"
+                },
+                "estado_solicitud": {
+                    "id": 3,
+                    "estado": "COTIZACION CARGADA",
+                    "slug": "cotizacion_cargada",
+                    "color_hexa_main": "#ffc107",
+                    "color_hexa_sec": "#ffda6a",
+                    "editable": true,
+                    "created_at": "2026-03-17T13:54:07.000Z"
+                },
+                "cotizacion": [
+                    {
+                        "id": 3,
+                        "solicitud_id": 5,
+                        "cotizacion_anterior_id": null,
+                        "estado_actual_id": 1,
+                        "cobertura": "IDA_Y_VUELTA",
+                        "valor_total": "850",
+                        "created_at": "2026-03-17T14:02:43.000Z",
+                        "updated_at": null,
+                        "closed_at": null,
+                        "estado_cotizacion": {
+                            "id": 1,
+                            "estado": "COTIZACION NUEVA",
+                            "slug": "cotizacion_nueva",
+                            "editable": true,
+                            "created_at": "2026-03-17T13:54:07.000Z"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": 6,
+                "radicado": "RAD-2026-040",
+                "usuario_id": 2,
+                "estado_actual_id": 4,
+                "tipo_de_vuelo": "IDA_Y_VUELTA",
+                "created_at": "2026-03-17T14:02:43.000Z",
+                "updated_at": null,
+                "closed_at": null,
+                "usuario": {
+                    "id": 2,
+                    "nombre": "Alvaro",
+                    "username": "alvaro"
+                },
+                "estado_solicitud": {
+                    "id": 4,
+                    "estado": "BOLETO CARGADO",
+                    "slug": "boleto_cargado",
+                    "color_hexa_main": "#20c997",
+                    "color_hexa_sec": "#63e6be",
+                    "editable": true,
+                    "created_at": "2026-03-17T13:54:07.000Z"
+                },
+                "cotizacion": [
+                    {
+                        "id": 4,
+                        "solicitud_id": 6,
+                        "cotizacion_anterior_id": null,
+                        "estado_actual_id": 7,
+                        "cobertura": "IDA_Y_VUELTA",
+                        "valor_total": "1500.5",
+                        "created_at": "2026-03-17T14:02:43.000Z",
+                        "updated_at": null,
+                        "closed_at": null,
+                        "estado_cotizacion": {
+                            "id": 7,
+                            "estado": "COTIZACION SELECCIONADA",
+                            "slug": "cotizacion_seleccionada",
+                            "editable": false,
+                            "created_at": "2026-03-17T13:54:07.000Z"
+                        }
+                    }
+                ]
+            }
+        ],
+        "paginacion": {
+            "total": 7,
+            "totalPaginas": 3,
+            "paginaActual": 2,
+            "limit": 3,
+            "orden": "desc",
+            "filtros": {
+                "estado": null,
+                "usuario_id": null
+            }
+        }
+    }
+}
+
+
+*/
 
   // RUTA DINÁMICA GET /solicitud/:id
   // Por parámetro de ruta → GET /solicitudes/5
   // GET /solicitud/:id
   @Get(':id') 
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles('SUPERADMIN','DEMO')
   @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerPorId(@Param('id') id: string) {
     return this.solicitudService.buscarPorId(id)
   }
+  // AUNQUE EXISTE ESTE ENDPOINT DE CONSULTA POR ID, NO SE EXPONDRA EN LA DOCUMENTACION PÚBLICA, YA QUE LA IDEA ES QUE LAS SOLICITUDES SE CONSULTEN SIEMPRE A TRAVÉS DE LOS ENDPOINTS DE LISTADO Y NO DIRECTAMENTE POR ID.
+
 
   // 7.5 Cerrar solicitud (marca closed_at, sin borrado físico)
   // POST /solicitud/:id/cerrar
@@ -427,7 +856,7 @@ export class SolicitudController {
   // 8️⃣ Eliminar físicamente todas las solicitudes con todas sus dependencias
   // DELETE /solicitud/eliminar-todas
   @Delete('eliminar-todas')
-  @Roles('SUPERADMIN','ADMIN')
+  @Roles('SUPERADMIN')
   @UseGuards(JwtAuthGuard, RolesGuard)
   async eliminarTodasLasSolicitudes(
     @Body() data: EliminarTodasSolicitudesDto,
@@ -444,6 +873,7 @@ BODY:
     "motivo": "Limpieza de datos de prueba después del desarrollo.",
     "reiniciar_indices": true
   }
+  nota: La autorizacion depende del ROL en el token.
 RESPUESTA:
 */
 
@@ -451,7 +881,7 @@ RESPUESTA:
   // DELETE /solicitud/usuario/:usuarioId
 
   @Delete('usuario/:usuarioId')
-  @Roles('SUPERADMIN','DEMO')
+  @Roles('SUPERADMIN')
   @UseGuards(JwtAuthGuard, RolesGuard)
   async eliminarSolicitudesPorUsuario(
     @Param('usuarioId') usuarioId: string,
@@ -460,6 +890,8 @@ RESPUESTA:
     return this.solicitudService.eliminarSolicitudesPorUsuario(Number(usuarioId), data)
   }
 /*
+Aunque este endpoint existe en el controlador, no se expondrá en la documentación pública, ya que es un endpoint de seguridad crítica diseñado para eliminar todas las solicitudes de un usuario específico. Solo se usará en casos muy puntuales, como limpieza de datos de prueba para usuarios demo. 
+
 DESCRIPCION: Este endpoint es para eliminar físicamente todas las solicitudes de viaje creadas por un usuario específico, junto con todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR_POR_USUARIO") para evitar borrados accidentales. 
 
 ENDPOINT: DELETE /solicitud/usuario/:usuarioId
@@ -472,7 +904,6 @@ BODY:
 RESPUESTA:
 
 */
-
 
 
   // 7️⃣ Eliminar físicamente una solicitud con todas sus dependencias
@@ -491,6 +922,8 @@ RESPUESTA:
   }
 }
 /*
+Aunque este endpoint existe en el controlador, no se expondrá en la documentación pública, ya que es un endpoint de seguridad crítica diseñado para eliminar completamente una solicitud específica. Solo se usará en casos muy puntuales, como limpieza de datos de prueba o eliminación de solicitudes creadas por error.
+
 DESCRIPCION: Este endpoint es para eliminar físicamente una solicitud de viaje y todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR") para evitar borrados accidentales. El controlador recibe el ID de la solicitud a eliminar a través del parámetro de ruta y los datos de confirmación en el cuerpo de la petición. Luego, llama al método eliminarSolicitudCompletamente del servicio, que se encarga de realizar la eliminación física en la base de datos. Si la eliminación es exitosa, se dispara un evento SOLICITUD_ELIMINADA_COMPLETAMENTE para notificar a otros sistemas o servicios interesados.
 ENDPOINT: DELETE /solicitud/:id
 Ejemplo: DELETE /solicitud/5
@@ -500,8 +933,6 @@ BODY:
     "motivo": "Solicitud duplicada, se creó por error."
   }
 RESPUESTA:
-
-
 
 
 

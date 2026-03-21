@@ -7,7 +7,6 @@ import { CrearSolicitudDto } from './dto/crear-solicitud.dto'
 import { EliminarSolicitudDto } from './dto/eliminar-solicitud.dto'
 import { EliminarSolicitudesUsuarioDto } from './dto/eliminar-solicitudes-usuario.dto'
 import { EliminarTodasSolicitudesDto } from './dto/eliminar-todas-solicitudes.dto'
-import { IniciarRevisionDto } from './dto/iniciar-revision.dto'
 import { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto'
 import { RespuestaApiEstandar } from './interfaces/respuesta-api.interface'
 
@@ -29,6 +28,39 @@ export class SolicitudService {
     private prisma: PrismaService,
     private readonly demoPolicyService: DemoPolicyService,
   ) {}
+
+  private formatearFechaSoloDia(fecha: Date | null | undefined): string | null {
+    if (!fecha) {
+      return null
+    }
+    return fecha.toISOString().slice(0, 10)
+  }
+
+  private enriquecerConDetalleVuelo<T extends { detalle_vuelo_solicitud?: Array<{
+    origen: string
+    destino: string
+    preferencia_aerolinea: string | null
+    fecha_ida: Date
+    fecha_vuelta: Date | null
+  }> }>(solicitud: T) {
+    const detalle = solicitud.detalle_vuelo_solicitud?.[0]
+    const { detalle_vuelo_solicitud, ...solicitudBase } = solicitud as T & {
+      detalle_vuelo_solicitud?: unknown
+    }
+
+    return {
+      ...solicitudBase,
+      ruta: {
+        origen: detalle?.origen ?? null,
+        destino: detalle?.destino ?? null,
+        preferencia_aerolinea: detalle?.preferencia_aerolinea ?? null,
+      },
+      fechas: {
+        ida: this.formatearFechaSoloDia(detalle?.fecha_ida),
+        vuelta: this.formatearFechaSoloDia(detalle?.fecha_vuelta),
+      },
+    }
+  }
 
   /**
    * 1️⃣ Crear solicitud - Estado inicial: PENDIENTE
@@ -188,12 +220,29 @@ export class SolicitudService {
           estado_solicitud: true,
           cotizacion: {
             include: { estado_cotizacion: true }
+          },
+          detalle_vuelo_solicitud: {
+            select: {
+              origen: true,
+              destino: true,
+              preferencia_aerolinea: true,
+              fecha_ida: true,
+              fecha_vuelta: true,
+            },
+            take: 1,
+            orderBy: {
+              created_at: 'desc',
+            },
           }
         },
         orderBy: { created_at: orden } // 'desc' = más recientes primero
       }),
       this.prisma.solicitud.count({ where }) // total real según filtros aplicados
     ])
+
+    const solicitudesEnriquecidas = solicitudes.map((solicitud) =>
+      this.enriquecerConDetalleVuelo(solicitud),
+    )
 
     // Calculamos el total de páginas para que el cliente pueda construir la navegación
     const totalPaginas = Math.ceil(total / limit)
@@ -202,7 +251,7 @@ export class SolicitudService {
       success: true,
       message: 'Solicitudes obtenidas correctamente',
       data: {
-        solicitudes,
+        solicitudes: solicitudesEnriquecidas,
         paginacion: {
           total,         // total de registros en la BD
           totalPaginas,  // cuántas páginas existen con este limit
@@ -251,6 +300,19 @@ export class SolicitudService {
             }
           }
         },
+        detalle_vuelo_solicitud: {
+          select: {
+            origen: true,
+            destino: true,
+            preferencia_aerolinea: true,
+            fecha_ida: true,
+            fecha_vuelta: true,
+          },
+          take: 1,
+          orderBy: {
+            created_at: 'desc',
+          },
+        },
         historial_estado_solicitud: {
           include: {
             estado_solicitud: true,
@@ -277,7 +339,7 @@ export class SolicitudService {
       success: true,
       message: 'Solicitud obtenida correctamente',
       data: {
-        solicitud
+        solicitud: this.enriquecerConDetalleVuelo(solicitud)
       }
     }
   }
@@ -288,7 +350,6 @@ export class SolicitudService {
   async iniciarRevision(
     solicitudId: number, 
     usuarioId: number, 
-    data?: IniciarRevisionDto,
     userRole?: string,
   ): Promise<RespuestaApiEstandar> {
     await this.demoPolicyService.assertSolicitudOwnershipIfDemo(
@@ -327,6 +388,20 @@ export class SolicitudService {
       throw new NotFoundException('Estado en_revision no encontrado')
     }
 
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      select: {
+        nombre: true,
+        username: true,
+        cod_empleado: true,
+      },
+    })
+
+    const nombreBase = (usuario?.nombre || usuario?.username || 'USUARIO').trim()
+    const nombreSistema = nombreBase.toUpperCase()
+    const codEmpleado = (usuario?.cod_empleado || 'SIN_CODIGO').trim().toUpperCase()
+    const msnSistema = `Revisión iniciada por ${nombreSistema} (${codEmpleado})`
+
     // Actualizar estado de la solicitud
     const solicitudActualizada = await this.prisma.solicitud.update({
       where: { id: solicitudId },
@@ -344,7 +419,7 @@ export class SolicitudService {
         solicitud_id: solicitudId,
         estado_id: estadoEnRevision.id,
         usuario_id: usuarioId,
-        observacion: data?.observacion || 'Administrador inició revisión de la solicitud'
+        observacion: msnSistema,
       }
     })
 
@@ -353,7 +428,8 @@ export class SolicitudService {
       message: 'Solicitud en revisión',
       data: {
         solicitud_id: solicitudActualizada.id,
-        estado: solicitudActualizada.estado_solicitud.estado
+        estado: solicitudActualizada.estado_solicitud.estado,
+        msn_sistema: msnSistema,
       },
       event: {
         type: 'SOLICITUD_EN_REVISION'

@@ -27,6 +27,7 @@ const ESTADOS_COTIZACION_SELECCIONABLE = [
 
 // Estados de solicitud que permiten recibir cotizaciones
 const ESTADOS_SOLICITUD_PARA_COTIZAR = ['en_revision','novedad','cotizacion_cargada']; // nota: se permite cargar cotización incluso si la solicitud tiene novedad, para facilitar corrección de errores o si ya hay una cotización cargada pero se necesita reemplazarla o añadir una nueva.
+const COBERTURAS_VALIDAS = ['IDA', 'IDA_Y_VUELTA', 'RETORNO'] as const;
 
 @Injectable()
 export class CotizacionService {
@@ -34,6 +35,64 @@ export class CotizacionService {
     private prisma: PrismaService,
     private readonly demoPolicyService: DemoPolicyService,
   ) {}
+
+  private normalizarTextoRuta(valor: string): string {
+    return valor
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+  }
+
+  private formatearFechaSoloDia(fecha: Date | null | undefined): string | null {
+    if (!fecha) {
+      return null
+    }
+    return fecha.toISOString().slice(0, 10)
+  }
+
+  private construirDetalleDesdeSegmentos(
+    segmentos: Array<{
+      aerolinea: string | null
+      tipo_segmento: 'IDA' | 'VUELTA' | 'ESCALA'
+      numero_vuelo: string
+      fecha_vuelo: Date
+      clase_tarifaria: string | null
+      politica_equipaje: string | null
+    }>,
+  ) {
+    const segmentoIda = segmentos.find((segmento) => segmento.tipo_segmento === 'IDA')
+    const segmentoVuelta = segmentos.find((segmento) => segmento.tipo_segmento === 'VUELTA')
+
+    const mapearSegmento = (segmento?: {
+      aerolinea: string | null
+      numero_vuelo: string
+      fecha_vuelo: Date
+      clase_tarifaria: string | null
+      politica_equipaje: string | null
+    }) => {
+      if (!segmento) {
+        return null
+      }
+
+      return {
+        aerolinea: segmento.aerolinea,
+        fecha: this.formatearFechaSoloDia(segmento.fecha_vuelo),
+        vuelo: segmento.numero_vuelo,
+        clase_tarifaria: segmento.clase_tarifaria,
+        politica_equipaje: segmento.politica_equipaje,
+      }
+    }
+
+    const ida = mapearSegmento(segmentoIda ?? segmentoVuelta)
+    const vuelta = mapearSegmento(segmentoVuelta)
+
+    if (!ida) {
+      return null
+    }
+
+    return vuelta ? { ida, vuelta } : { ida }
+  }
 
   /**
    * 3️⃣ Admin carga cotización sobre una solicitud
@@ -55,10 +114,28 @@ export class CotizacionService {
     )
     await this.demoPolicyService.assertCanCreate('cotizacion', usuarioId, userRole)
 
+    if (!data || Object.keys(data).length === 0) {
+      throw new BadRequestException(
+        'Debe enviar un body con los datos de la cotización',
+      )
+    }
+
     // Verificar que la solicitud existe y está en estado válido
     const solicitud = await this.prisma.solicitud.findUnique({
       where: { id: solicitudId },
-      include: { estado_solicitud: true },
+      include: {
+        estado_solicitud: true,
+        detalle_vuelo_solicitud: {
+          select: {
+            origen: true,
+            destino: true,
+          },
+          take: 1,
+          orderBy: {
+            created_at: 'desc',
+          },
+        },
+      },
     });
     console.log('Solicitud encontrada:', solicitud); // Debug: Verificar que la solicitud se encuentra correctamente
 
@@ -74,6 +151,74 @@ export class CotizacionService {
       throw new BadRequestException(
         `No se puede cargar cotización. La solicitud está en estado: ${solicitud.estado_solicitud.estado}`,
       );
+    }
+
+    if (!COBERTURAS_VALIDAS.includes(data.cobertura)) {
+      throw new BadRequestException(
+        'La cobertura enviada no es válida. Valores permitidos: IDA, IDA_Y_VUELTA, RETORNO',
+      )
+    }
+
+    if (data.cobertura !== solicitud.tipo_de_vuelo) {
+      throw new BadRequestException(
+        `La cobertura de la cotización debe coincidir con la solicitud (${solicitud.tipo_de_vuelo})`,
+      )
+    }
+
+    const detalle = data.detalle
+    if (!detalle || typeof detalle !== 'object') {
+      throw new BadRequestException(
+        'Debe enviar la propiedad detalle con la estructura requerida según la cobertura',
+      )
+    }
+
+    const tieneIda = !!detalle.ida
+    const tieneVuelta = !!detalle.vuelta
+
+    if (data.cobertura === 'IDA_Y_VUELTA') {
+      if (!tieneIda || !tieneVuelta) {
+        throw new BadRequestException(
+          'Para cobertura IDA_Y_VUELTA, detalle debe incluir ida y vuelta',
+        )
+      }
+    }
+
+    if (data.cobertura === 'IDA' || data.cobertura === 'RETORNO') {
+      if (!tieneIda || tieneVuelta) {
+        throw new BadRequestException(
+          `Para cobertura ${data.cobertura}, detalle debe incluir solo ida`,
+        )
+      }
+    }
+
+    if (!data.ruta?.origen?.trim() || !data.ruta?.destino?.trim()) {
+      throw new BadRequestException(
+        'La ruta es obligatoria para crear una cotización y debe incluir origen y destino',
+      )
+    }
+
+    const detalleSolicitud = solicitud.detalle_vuelo_solicitud?.[0]
+    if (!detalleSolicitud) {
+      throw new BadRequestException(
+        'La solicitud no tiene detalle de vuelo (origen/destino). Debe corregir o generar una nueva solicitud.',
+      )
+    }
+
+    const origenSolicitud = this.normalizarTextoRuta(detalleSolicitud.origen)
+    const destinoSolicitud = this.normalizarTextoRuta(detalleSolicitud.destino)
+    const origenCotizacion = this.normalizarTextoRuta(data.ruta.origen)
+    const destinoCotizacion = this.normalizarTextoRuta(data.ruta.destino)
+
+    const rutaCoincideIda =
+      origenCotizacion === origenSolicitud && destinoCotizacion === destinoSolicitud
+    const rutaValidaSegunCobertura = rutaCoincideIda
+
+    if (!rutaValidaSegunCobertura) {
+      const rutaEsperada = `${detalleSolicitud.origen} -> ${detalleSolicitud.destino}`
+
+      throw new BadRequestException(
+        `La ruta enviada no coincide con la solicitud para cobertura ${data.cobertura}. Ruta esperada: ${rutaEsperada}. Debe corregir los datos o generar una nueva solicitud.`,
+      )
     }
 
     // Obtener estados necesarios
@@ -236,6 +381,7 @@ export class CotizacionService {
           valor_total: cotizacion.valor_total,
           moneda: data.moneda,
           cobertura: cotizacion.cobertura,
+          ruta: data.ruta,
           detalle: data.detalle ?? null,
           created_at: cotizacion.created_at,
         },
@@ -272,6 +418,12 @@ export class CotizacionService {
     data: ReemplazarCotizacionDto,
     userRole?: string,
   ) {
+    if (!data || Object.keys(data).length === 0) {
+      throw new BadRequestException(
+        'Debe enviar un body con los datos de la cotización',
+      )
+    }
+
     await this.demoPolicyService.assertCotizacionOwnershipIfDemo(
       cotizacionId,
       usuarioId,
@@ -304,6 +456,12 @@ export class CotizacionService {
       throw new BadRequestException(
         'No se puede reemplazar una cotización que ya fue anulada',
       );
+    }
+
+    if (data.cobertura !== cotizacionAnterior.solicitud.tipo_de_vuelo) {
+      throw new BadRequestException(
+        `La cobertura de la cotización debe coincidir con la solicitud (${cotizacionAnterior.solicitud.tipo_de_vuelo})`,
+      )
     }
 
     return this.crearCotizacion(solicitudId, usuarioId, {
@@ -875,6 +1033,29 @@ export class CotizacionService {
       where: { solicitud_id: solicitudId },
       include: {
         estado_cotizacion: true,
+        segmento_cotizacion: {
+          select: {
+            aerolinea: true,
+            tipo_segmento: true,
+            numero_vuelo: true,
+            fecha_vuelo: true,
+            clase_tarifaria: true,
+            politica_equipaje: true,
+          },
+          orderBy: { created_at: 'asc' },
+        },
+        solicitud: {
+          select: {
+            detalle_vuelo_solicitud: {
+              select: {
+                origen: true,
+                destino: true,
+              },
+              take: 1,
+              orderBy: { created_at: 'desc' },
+            },
+          },
+        },
         historial_estado_cotizacion: {
           include: {
             estado_cotizacion: true,
@@ -886,10 +1067,25 @@ export class CotizacionService {
       orderBy: { created_at: 'desc' },
     });
 
+    const cotizacionesConRuta = cotizaciones.map((cotizacion) => {
+      const detalleRuta = cotizacion.solicitud?.detalle_vuelo_solicitud?.[0];
+      const detalle = this.construirDetalleDesdeSegmentos(cotizacion.segmento_cotizacion);
+      const { solicitud, segmento_cotizacion, ...cotizacionBase } = cotizacion;
+
+      return {
+        ...cotizacionBase,
+        ruta: {
+          origen: detalleRuta?.origen ?? null,
+          destino: detalleRuta?.destino ?? null,
+        },
+        detalle,
+      };
+    });
+
     return {
       success: true,
       message: 'Cotizaciones obtenidas correctamente',
-      data: { cotizaciones, total: cotizaciones.length },
+      data: { cotizaciones: cotizacionesConRuta, total: cotizacionesConRuta.length },
     };
   }
 
@@ -902,7 +1098,30 @@ export class CotizacionService {
       where: { id },
       include: {
         estado_cotizacion: true,
-        solicitud: { include: { estado_solicitud: true } },
+        segmento_cotizacion: {
+          select: {
+            aerolinea: true,
+            tipo_segmento: true,
+            numero_vuelo: true,
+            fecha_vuelo: true,
+            clase_tarifaria: true,
+            politica_equipaje: true,
+          },
+          orderBy: { created_at: 'asc' },
+        },
+        solicitud: {
+          include: {
+            estado_solicitud: true,
+            detalle_vuelo_solicitud: {
+              select: {
+                origen: true,
+                destino: true,
+              },
+              take: 1,
+              orderBy: { created_at: 'desc' },
+            },
+          },
+        },
         boleto: { include: { estado_boleto: true } },
         historial_estado_cotizacion: {
           include: {
@@ -918,10 +1137,27 @@ export class CotizacionService {
       throw new NotFoundException(`Cotización con ID ${id} no encontrada`);
     }
 
+    const detalleRuta = cotizacion.solicitud.detalle_vuelo_solicitud?.[0];
+    const { detalle_vuelo_solicitud, ...solicitudBase } = cotizacion.solicitud;
+    const detalle = this.construirDetalleDesdeSegmentos(cotizacion.segmento_cotizacion);
+    const { segmento_cotizacion, ...cotizacionBase } = cotizacion;
+
+    const cotizacionConRuta = {
+      ...cotizacionBase,
+      solicitud: {
+        ...solicitudBase,
+        ruta: {
+          origen: detalleRuta?.origen ?? null,
+          destino: detalleRuta?.destino ?? null,
+        },
+      },
+      detalle,
+    };
+
     return {
       success: true,
       message: 'Cotización obtenida correctamente',
-      data: { cotizacion },
+      data: { cotizacion: cotizacionConRuta },
     };
   }
 }

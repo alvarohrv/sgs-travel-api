@@ -1,3 +1,8 @@
+
+    ////??? ////????? de las peticiones GET desacoplar el atributo 'historial_estado_solicitud' y crear un endpoint específico para consultar el historial de estados de una cotización, así evitamos cargar ese historial cada vez que se consulta una cotización o las cotizaciones de una solicitud, ejempl GET /cotizacion/:id/historial-estado
+
+    ////???? PENDIENTE PROBAR DE NUEVO ENDPOINT GET para documentar finalmente luego de los cambios!!!!!!!!!!!!
+
 /*
 ═══════════════════════════════════════════════════════════════════════════
   CONTROLADOR: COTIZACION
@@ -98,6 +103,10 @@ export class CotizacionController {
     "valor_total": 850000,
     "moneda": "COP",
     "cobertura": "IDA_Y_VUELTA",
+    "ruta": {
+        "origen": "Bogota",
+        "destino": "Cartagena"
+    },
     "detalle": {
       "ida": {
         "aerolinea": "Wingo",
@@ -113,6 +122,7 @@ export class CotizacionController {
     }
   }
 
+
   RESPUESTA (nueva cotización)::
   {
       "success": true,
@@ -126,16 +136,21 @@ export class CotizacionController {
               "valor_total": "850000",
               "moneda": "COP",
               "cobertura": "IDA_Y_VUELTA",
+              "ruta": {
+                "origen": "Bogota",
+                "destino": "Cartagena",
+              },
+              },
               "detalle": {
                   "ida": {
                       "aerolinea": "Wingo",
-                      "fecha": "2026-02-02",
+                      "fecha": "2026-05-02",
                       "vuelo": "WA123",
                       "clase_tarifaria": "ECONOMICA"
                   },
                   "vuelta": {
                       "aerolinea": "Wingo",
-                      "fecha": "2026-03-15",
+                      "fecha": "2026-05-15",
                       "vuelo": "WA456"
                   }
               },
@@ -154,23 +169,27 @@ export class CotizacionController {
       }
   }
 
-  BODY (Para crear una cotizacion adicional (6) para esta solicitud):
-    {
+  BODY (Para crear una cotizacion adicional para esta solicitud):
+  {
     "cotizacion_anterior_id": null,
     "valor_total": 750000,
     "moneda": "COP",
     "cobertura": "IDA_Y_VUELTA",
+    "ruta": {
+        "origen": "Bogota",
+        "destino": "Cartagena"
+    },
     "detalle": {
       "ida": {
-        "aerolinea": "Tingo",
+        "aerolinea": "LATAM",
         "fecha": "2026-02-02",
-        "vuelo": "TT556",
+        "vuelo": "LA148",
         "clase_tarifaria": "ECONOMICA"
       },
       "vuelta": {
-        "aerolinea": "Tingo",
-        "fecha": "2026-03-19",
-        "vuelo": "TT789"
+        "aerolinea": "Wingo",
+        "fecha": "2026-03-16",
+        "vuelo": "WA755"
       }
     }
   }
@@ -221,6 +240,13 @@ export class CotizacionController {
           ]
       }
   }
+
+  RESPUESTA EN CASO DE FALTA DE COMENTARIO:
+  {
+      "message": "El comentario es obligatorio para reportar una novedad",
+      "error": "Bad Request",
+      "statusCode": 400
+  }
  */
 
 
@@ -259,24 +285,30 @@ export class CotizacionController {
 
               BODY (nueva cotización):
   {
-    "valor_total": 840000,
+    "valor_total": 860000,
     "moneda": "COP",
     "cobertura": "IDA_Y_VUELTA",
+    "ruta": {
+        "origen": "Bogota",
+        "destino": "Cartagena"
+    },    
     "detalle": {
       "ida": {
-        "aerolinea": "Wingo",
-        "fecha": "2026-02-02",
-        "vuelo": "WA123",
-        "clase_tarifaria": "ECONOMICA"
+        "aerolinea": "LATAM",
+        "fecha": "2026-02-03",
+        "vuelo": "LA129",
+        "clase_tarifaria": "ECONOMICA",
+        "politica_equipaje": "1 maleta de 23kg incluida"
       },
       "vuelta": {
         "aerolinea": "Wingo",
-        "fecha": "2026-03-20",
-        "vuelo": "WA788",
+        "fecha": "2026-03-15",
+        "vuelo": "WA456",
         "clase_tarifaria": "ECONOMICA"
       }
     }
   }
+
 
   RESPUESTA EN CASO DE REMPLAZO:
   {
@@ -284,28 +316,33 @@ export class CotizacionController {
       "message": "Cotización reemplazada correctamente",
       "data": {
           "cotizacion": {
-              "id": 7,
+              "id": 9,
               "solicitud_id": 2,
               "cotizacion_anterior_id": 5,
               "estado": "COTIZACION NUEVA",
-              "valor_total": "840000",
+              "valor_total": "860000",
               "moneda": "COP",
               "cobertura": "IDA_Y_VUELTA",
+              "ruta": {
+                  "origen": "Bogota",
+                  "destino": "Cartagena"
+              },
               "detalle": {
                   "ida": {
-                      "aerolinea": "Wingo",
-                      "fecha": "2026-02-02",
-                      "vuelo": "WA123",
-                      "clase_tarifaria": "ECONOMICA"
+                      "aerolinea": "LATAM",
+                      "fecha": "2026-02-03",
+                      "vuelo": "LA129",
+                      "clase_tarifaria": "ECONOMICA",
+                      "politica_equipaje": "1 maleta de 23kg incluida"
                   },
                   "vuelta": {
                       "aerolinea": "Wingo",
-                      "fecha": "2026-03-20",
-                      "vuelo": "WA788",
+                      "fecha": "2026-03-15",
+                      "vuelo": "WA456",
                       "clase_tarifaria": "ECONOMICA"
                   }
               },
-              "created_at": "2026-03-11T22:49:21.000Z"
+              "created_at": "2026-03-20T20:17:24.000Z"
           }
       },
       "event": {
@@ -324,7 +361,6 @@ export class CotizacionController {
           ]
       }
   }
-
   */
 
   ////// "Aplanamiento de Rutas" ////
@@ -394,30 +430,30 @@ export class CotizacionController {
     ENDPOINT http://localhost:3000/cotizacion/7/conservar
     BODY
     {
-      "comentario": "No hay vuelos mas tempranos por mal clima, se mantiene vigente el vuelo actual."
+      "comentario": "No hay vuelos mas tempranos por mal clima, se mantiene vigente el vuelo actual o seleccionar la otra cotización cargada."
     }
     RESPUESTA
-  {
-      "success": true,
-      "message": "Cotización conservada correctamente",
-      "data": {
-          "cotizacion": {
-              "id": 7,
-              "estado": "COTIZACION NUEVA"
-          },
-          "comentario": "No hay vuelos mas tempranos por mal clima, se mantiene vigente el vuelo actual."
-      },
-      "event": {
-          "type": "COTIZACION_CONSERVADA",
-          "affected_entities": [
-              {
-                  "entity": "solicitud",
-                  "id": 2,
-                  "new_state": "COTIZACION CARGADA"
-              }
-          ]
-      }
-  }
+{
+    "success": true,
+    "message": "Cotización conservada correctamente",
+    "data": {
+        "cotizacion": {
+            "id": 7,
+            "estado": "COTIZACION NUEVA"
+        },
+        "comentario": "No hay vuelos mas tempranos por mal clima, se mantiene vigente el vuelo actual o seleccionar la otra cotización cargada."
+    },
+    "event": {
+        "type": "COTIZACION_CONSERVADA",
+        "affected_entities": [
+            {
+                "entity": "solicitud",
+                "id": 2,
+                "new_state": "COTIZACION CARGADA"
+            }
+        ]
+    }
+}
   */
 
 
@@ -446,47 +482,66 @@ export class CotizacionController {
 
   {
     "cotizacion_primaria_id": 7,
-    "cotizacion_secundaria_id": 6,
+    "cotizacion_secundaria_id": 8,
     "comentario": "Selecciono esta opción principal y dejo otra como respaldo."
   }
   RESPUESTA:
-    {
-        "success": true,
-        "message": "Cotizaciones seleccionadas correctamente",
-        "data": {
-            "cotizacion": {
-                "seleccion": {
-                    "primaria": {
-                        "id": 7,
-                        "estado": "OPCION PRIMARIA",
-                        "sub_estado": "EN REVISION"
-                    },
-                    "secundaria": {
-                        "id": 6,
-                        "estado": "OPCION SECUNDARIA",
-                        "sub_estado": "EN REVISION"
-                    }
+{
+    "success": true,
+    "message": "Cotizaciones seleccionadas correctamente",
+    "data": {
+        "cotizacion": {
+            "seleccion": {
+                "primaria": {
+                    "id": 7,
+                    "estado": "OPCION PRIMARIA",
+                    "sub_estado": "EN REVISION"
                 },
-                "descartadas": [],
-                "anuladas_sin_cambio": [
-                    {
-                        "id": 5,
-                        "estado": "COTIZACION ANULADA"
-                    }
-                ]
-            }
-        },
-        "event": {
-            "type": "COTIZACIONES_SELECCIONADAS",
-            "affected_entities": [
+                "secundaria": {
+                    "id": 8,
+                    "estado": "OPCION SECUNDARIA",
+                    "sub_estado": "EN REVISION"
+                }
+            },
+            "descartadas": [
                 {
-                    "entity": "solicitud",
-                    "id": 2,
-                    "new_state": "EN REVISION"
+                    "id": 9,
+                    "estado": "COTIZACION DESCARTADA"
+                },
+                {
+                    "id": 10,
+                    "estado": "COTIZACION DESCARTADA"
+                },
+            ],
+            "anuladas_sin_cambio": [
+                {
+                    "id": 5,
+                    "estado": "COTIZACION ANULADA"
                 }
             ]
         }
+    },
+    "event": {
+        "type": "COTIZACIONES_SELECCIONADAS",
+        "affected_entities": [
+            {
+                "entity": "solicitud",
+                "id": 2,
+                "new_state": "EN REVISION"
+            },
+            {
+                "entity": "cotizacion",
+                "id": 9,
+                "new_state": "COTIZACION DESCARTADA"
+            },
+            {
+                "entity": "cotizacion",
+                "id": 10,
+                "new_state": "COTIZACION DESCARTADA"
+            },
+        ]
     }
+}
 */
 
   // ========== CONSULTAS ==========
@@ -499,14 +554,102 @@ export class CotizacionController {
   async obtenerPorSolicitud(@Param('solicitudId') solicitudId: string) {
     return this.cotizacionService.obtenerPorSolicitud(Number(solicitudId))
   }
+  /*
+  URL de ejemplo: http://localhost:3000/solicitud/3/cotizacion
+
+  RESPUESTA:
+{
+    "success": true,
+    "message": "Cotizaciones obtenidas correctamente",
+    "data": {
+        "cotizaciones": [
+            {
+                "id": 3,
+                "solicitud_id": 5,
+                "cotizacion_anterior_id": null,
+                "estado_actual_id": 1,
+                "cobertura": "IDA_Y_VUELTA",
+                "valor_total": "850",
+                "created_at": "2026-03-20T10:36:12.000Z",
+                "updated_at": null,
+                "closed_at": null,
+                "estado_cotizacion": {
+                    "id": 1,
+                    "estado": "COTIZACION NUEVA",
+                    "slug": "cotizacion_nueva",
+                    "editable": true,
+                    "created_at": "2026-03-17T13:54:07.000Z"
+                },
+                "historial_estado_cotizacion": [],
+                "ruta": {
+                    "origen": "Bogotá",
+                    "destino": "Cali"
+                }
+            }
+        ],
+        "total": 1
+    }
+}
+}*/
 
   // 6️⃣ Obtener cotización por ID
   // GET /cotizacion/:id
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  // @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('cotizacion/:id')
   async obtenerPorId(@Param('id') id: string) {
     return this.cotizacionService.obtenerPorId(Number(id))
   }
 }
-
+/*
+URL de ejemplo: http://localhost:3000/cotizacion/3
+{
+    "success": true,
+    "message": "Cotización obtenida correctamente",
+    "data": {
+        "cotizacion": {
+            "id": 3,
+            "solicitud_id": 5,
+            "cotizacion_anterior_id": null,
+            "estado_actual_id": 1,
+            "cobertura": "IDA_Y_VUELTA",
+            "valor_total": "850",
+            "created_at": "2026-03-20T10:36:12.000Z",
+            "updated_at": null,
+            "closed_at": null,
+            "estado_cotizacion": {
+                "id": 1,
+                "estado": "COTIZACION NUEVA",
+                "slug": "cotizacion_nueva",
+                "editable": true,
+                "created_at": "2026-03-17T13:54:07.000Z"
+            },
+            "solicitud": {
+                "id": 5,
+                "radicado": "RAD-2026-033",
+                "usuario_id": 1,
+                "estado_actual_id": 3,
+                "tipo_de_vuelo": "IDA_Y_VUELTA",
+                "created_at": "2026-03-20T10:36:12.000Z",
+                "updated_at": null,
+                "closed_at": null,
+                "estado_solicitud": {
+                    "id": 3,
+                    "estado": "COTIZACION CARGADA",
+                    "slug": "cotizacion_cargada",
+                    "color_hexa_main": "#ffc107",
+                    "color_hexa_sec": "#ffda6a",
+                    "editable": true,
+                    "created_at": "2026-03-17T13:54:07.000Z"
+                },
+                "ruta": {
+                    "origen": "Bogotá",
+                    "destino": "Cali"
+                }
+            },
+            "boleto": [],
+            "historial_estado_cotizacion": []
+        }
+    }
+}
+*/

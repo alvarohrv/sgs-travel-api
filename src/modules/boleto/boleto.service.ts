@@ -8,12 +8,22 @@ import { ConfirmarBoletoDto } from './dto/confirmar-boleto.dto';
 import { ReemplazarBoletoDto } from './dto/reemplazar-boleto.dto';
 import { boleto, cotizacion, estado_boleto } from '@prisma/client';
 
+const COBERTURAS_BOLETO_VALIDAS = ['IDA', 'IDA_Y_VUELTA', 'RETORNO'] as const;
+
 @Injectable()
 export class BoletoService {
 	constructor(
 		private prisma: PrismaService,
 		private readonly demoPolicyService: DemoPolicyService,
 	) {}
+
+	private normalizarTextoRuta(valor: string): string {
+		return valor
+			.trim()
+			.toLowerCase()
+			.normalize('NFD')
+			.replace(/[\u0300-\u036f]/g, '')
+	}
 
 	async emitirBoleto(cotizacionId: number, usuarioId: number, data: EmitirBoletoDto, userRole?: string) {
 		await this.demoPolicyService.assertCotizacionOwnershipIfDemo(
@@ -31,12 +41,50 @@ export class BoletoService {
 			throw new BadRequestException('Debe enviar al menos un segmento de vuelo');
 		}
 
+		if (!COBERTURAS_BOLETO_VALIDAS.includes(data.cobertura as (typeof COBERTURAS_BOLETO_VALIDAS)[number])) {
+			throw new BadRequestException('La cobertura enviada no es válida. Valores permitidos: IDA, IDA_Y_VUELTA, RETORNO');
+		}
+
+		const tiposSegmento = data.segmentos.map((segmento) => segmento.tipo_segmento);
+		const totalIda = tiposSegmento.filter((tipo) => tipo === 'IDA').length;
+		const totalVuelta = tiposSegmento.filter((tipo) => tipo === 'VUELTA').length;
+
+		if (data.cobertura === 'IDA_Y_VUELTA') {
+			const estructuraValida = data.segmentos.length === 2 && totalIda === 1 && totalVuelta === 1;
+			if (!estructuraValida) {
+				throw new BadRequestException(
+					'Para cobertura IDA_Y_VUELTA debe enviar exactamente dos segmentos: uno IDA y uno VUELTA',
+				);
+			}
+		}
+
+		if (data.cobertura === 'IDA' || data.cobertura === 'RETORNO') {
+			const estructuraValida = data.segmentos.length === 1 && totalIda === 1;
+			if (!estructuraValida) {
+				throw new BadRequestException(
+					`Para cobertura ${data.cobertura} debe enviar un solo segmento con tipo_segmento IDA`,
+				);
+			}
+		}
+
+		if (!data.ruta?.origen?.trim() || !data.ruta?.destino?.trim()) {
+			throw new BadRequestException('La ruta es obligatoria para emitir el boleto y debe incluir origen y destino');
+		}
+
 		const cotizacion = await this.prisma.cotizacion.findUnique({
 			where: { id: cotizacionId },
 			include: {
 				estado_cotizacion: true,
 				solicitud: {
 					include: {
+						detalle_vuelo_solicitud: {
+							select: {
+								origen: true,
+								destino: true,
+							},
+							take: 1,
+							orderBy: { created_at: 'desc' },
+						},
 						cotizacion: {
 							include: { estado_cotizacion: true },
 						},
@@ -47,6 +95,42 @@ export class BoletoService {
 
 		if (!cotizacion) {
 			throw new NotFoundException(`Cotizacion con ID ${cotizacionId} no encontrada`);
+		}
+
+		const estadosCotizacionNoEmitibles = [
+			'cotizacion_seleccionada',
+			'cotizacion_anulada',
+			'cotizacion_rechazada',
+			'novedad',
+		]
+
+		if (estadosCotizacionNoEmitibles.includes(cotizacion.estado_cotizacion.slug)) {
+			throw new BadRequestException(
+				`No se puede emitir boleto para una cotización en estado ${cotizacion.estado_cotizacion.estado}`,
+			)
+		}
+
+		if (data.cobertura !== cotizacion.solicitud.tipo_de_vuelo) {
+			throw new BadRequestException(
+				`La cobertura del boleto debe coincidir con la solicitud (${cotizacion.solicitud.tipo_de_vuelo})`,
+			)
+		}
+
+		const detalleSolicitud = cotizacion.solicitud.detalle_vuelo_solicitud?.[0]
+		if (!detalleSolicitud) {
+			throw new BadRequestException('La solicitud no tiene detalle de vuelo (origen/destino). Debe corregir o generar una nueva solicitud.');
+		}
+
+		const origenSolicitud = this.normalizarTextoRuta(detalleSolicitud.origen)
+		const destinoSolicitud = this.normalizarTextoRuta(detalleSolicitud.destino)
+		const origenBoleto = this.normalizarTextoRuta(data.ruta.origen)
+		const destinoBoleto = this.normalizarTextoRuta(data.ruta.destino)
+
+		const rutaCoincide = origenBoleto === origenSolicitud && destinoBoleto === destinoSolicitud
+		if (!rutaCoincide) {
+			throw new BadRequestException(
+				`La ruta enviada no coincide con la solicitud. Ruta esperada: ${detalleSolicitud.origen} -> ${detalleSolicitud.destino}. Debe corregir los datos o generar una nueva solicitud.`,
+			)
 		}
 
 		const [
@@ -223,9 +307,16 @@ export class BoletoService {
 					cotizacion_id: resultado.cotizacion_id,
 					reemplaza_boleto_id: resultado.reemplaza_boleto_id,
 					cobertura: resultado.cobertura,
+					ruta: {
+						origen: detalleSolicitud.origen,
+						destino: detalleSolicitud.destino,
+					},
 						valor_final: resultado.valor_final,
 					created_at: resultado.created_at,
-					segmentos: data.segmentos,
+					segmentos: data.segmentos.map((segmento) => ({
+						...segmento,
+						estado: 'CONFIRMADO',
+					})),
 				},
 			},
 			event: {
@@ -235,6 +326,11 @@ export class BoletoService {
 						entity: 'solicitud',
 						id: cotizacion.solicitud_id,
 						new_state: 'BOLETO CARGADO',
+					},
+					{
+						entity: 'cotizacion',
+						id: cotizacionId,
+						new_state: 'COTIZACION SELECCIONADA',
 					},
 					...(data.reemplaza_boleto_id
 						? [
@@ -512,6 +608,10 @@ export class BoletoService {
 		await this.demoPolicyService.assertBoletoOwnershipIfDemo(boletoId, usuarioId, userRole)
 		await this.demoPolicyService.assertCanCreate('boleto', usuarioId, userRole)
 
+		if (!data || Object.keys(data).length === 0) {
+			throw new BadRequestException('Debe enviar un body con los datos del boleto')
+		}
+
 		if (!data.cobertura || data.cobertura.trim() === '') {
 			throw new BadRequestException('La cobertura es obligatoria para reemplazar el boleto');
 		}
@@ -520,11 +620,56 @@ export class BoletoService {
 			throw new BadRequestException('Debe enviar al menos un segmento de vuelo');
 		}
 
+		if (!COBERTURAS_BOLETO_VALIDAS.includes(data.cobertura as (typeof COBERTURAS_BOLETO_VALIDAS)[number])) {
+			throw new BadRequestException('La cobertura enviada no es válida. Valores permitidos: IDA, IDA_Y_VUELTA, RETORNO');
+		}
+
+		const tiposSegmento = data.segmentos.map((segmento) => segmento.tipo_segmento)
+		const totalIda = tiposSegmento.filter((tipo) => tipo === 'IDA').length
+		const totalVuelta = tiposSegmento.filter((tipo) => tipo === 'VUELTA').length
+
+		if (data.cobertura === 'IDA_Y_VUELTA') {
+			const estructuraValida = data.segmentos.length === 2 && totalIda === 1 && totalVuelta === 1
+			if (!estructuraValida) {
+				throw new BadRequestException(
+					'Para cobertura IDA_Y_VUELTA debe enviar exactamente dos segmentos: uno IDA y uno VUELTA',
+				)
+			}
+		}
+
+		if (data.cobertura === 'IDA' || data.cobertura === 'RETORNO') {
+			const estructuraValida = data.segmentos.length === 1 && totalIda === 1
+			if (!estructuraValida) {
+				throw new BadRequestException(
+					`Para cobertura ${data.cobertura} debe enviar un solo segmento con tipo_segmento IDA`,
+				)
+			}
+		}
+
+		if (!data.ruta?.origen?.trim() || !data.ruta?.destino?.trim()) {
+			throw new BadRequestException('La ruta es obligatoria para reemplazar el boleto y debe incluir origen y destino')
+		}
+
 		const boletoExistente = await this.prisma.boleto.findUnique({
 			where: { id: boletoId },
 			include: {
 				estado_boleto: true,
-				cotizacion: true,
+				cotizacion: {
+					include: {
+						solicitud: {
+							include: {
+								detalle_vuelo_solicitud: {
+									select: {
+										origen: true,
+										destino: true,
+									},
+									take: 1,
+									orderBy: { created_at: 'desc' },
+								},
+							},
+						},
+					},
+				},
 			},
 		});
 
@@ -537,15 +682,38 @@ export class BoletoService {
 			throw new BadRequestException('Solo se pueden reemplazar boletos en estado BOLETO EMITIDO o NOVEDAD');
 		}
 
-		const [estadoBoletoAnulado, estadoBoletoEmitido, estadoSolicitudBoletoCargado, estadoSegmentoConfirmado] =
+		if (data.cobertura !== boletoExistente.cotizacion.solicitud.tipo_de_vuelo) {
+			throw new BadRequestException(
+				`La cobertura del boleto debe coincidir con la solicitud (${boletoExistente.cotizacion.solicitud.tipo_de_vuelo})`,
+			)
+		}
+
+		const detalleSolicitud = boletoExistente.cotizacion.solicitud.detalle_vuelo_solicitud?.[0]
+		if (!detalleSolicitud) {
+			throw new BadRequestException('La solicitud no tiene detalle de vuelo (origen/destino). Debe corregir o generar una nueva solicitud.');
+		}
+
+		const origenSolicitud = this.normalizarTextoRuta(detalleSolicitud.origen)
+		const destinoSolicitud = this.normalizarTextoRuta(detalleSolicitud.destino)
+		const origenBoleto = this.normalizarTextoRuta(data.ruta.origen)
+		const destinoBoleto = this.normalizarTextoRuta(data.ruta.destino)
+
+		const rutaCoincide = origenBoleto === origenSolicitud && destinoBoleto === destinoSolicitud
+		if (!rutaCoincide) {
+			throw new BadRequestException(
+				`La ruta enviada no coincide con la solicitud. Ruta esperada: ${detalleSolicitud.origen} -> ${detalleSolicitud.destino}. Debe corregir los datos o generar una nueva solicitud.`,
+			)
+		}
+
+		const [estadoBoletoAnulado, estadoBoletoEmitido, estadoSolicitudBoletoCargado, estadoSegmentoReprogramado] =
 			await Promise.all([
 				this.prisma.estado_boleto.findUnique({ where: { slug: 'boleto_anulado' } }),
 				this.prisma.estado_boleto.findUnique({ where: { slug: 'boleto_emitido' } }),
 				this.prisma.estado_solicitud.findUnique({ where: { slug: 'boleto_cargado' } }),
-				this.prisma.estado_segmento_boleto.findUnique({ where: { slug: 'confirmado' } }),
+				this.prisma.estado_segmento_boleto.findUnique({ where: { slug: 'reprogramado' } }),
 			]);
 
-		if (!estadoBoletoAnulado || !estadoBoletoEmitido || !estadoSolicitudBoletoCargado || !estadoSegmentoConfirmado) {
+		if (!estadoBoletoAnulado || !estadoBoletoEmitido || !estadoSolicitudBoletoCargado || !estadoSegmentoReprogramado) {
 			throw new NotFoundException('Estados requeridos no encontrados en la base de datos');
 		}
 
@@ -587,7 +755,7 @@ export class BoletoService {
 			await tx.segmento_boleto.createMany({
 				data: data.segmentos.map((segmento) => ({
 					boleto_id: nuevoBoleto.id,
-					estado_id: estadoSegmentoConfirmado.id,
+					estado_id: estadoSegmentoReprogramado.id,
 					tipo_segmento: segmento.tipo_segmento,
 					aerolinea: segmento.aerolinea ?? null,
 					codigo_reserva: segmento.codigo_reserva ?? null,
@@ -630,8 +798,15 @@ export class BoletoService {
 					estado: resultado.estado_boleto.estado,
 					reemplaza_boleto_id: resultado.reemplaza_boleto_id,
 					cobertura: resultado.cobertura,
+					ruta: {
+						origen: detalleSolicitud.origen,
+						destino: detalleSolicitud.destino,
+					},
 					valor_final: resultado.valor_final,
-					segmentos: data.segmentos,
+					segmentos: data.segmentos.map((segmento) => ({
+						...segmento,
+						estado: 'REPROGRAMADO',
+					})),
 				},
 			},
 			event: {

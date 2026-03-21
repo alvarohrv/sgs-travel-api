@@ -15,10 +15,16 @@ export class DetalleCotizacionDto {
   vuelta?: DetalleVueloDto; // opcional para SOLO_IDA
 }
 
+export class RutaCotizacionDto {
+  origen: string;
+  destino: string;
+}
+
 export class CrearCotizacionDto {
   cotizacion_anterior_id: number | null; // null = nueva, número = reemplaza
   valor_total: number;
   moneda: string;
-  cobertura: string; // "COMPLETA" | "SOLO_IDA"
+  cobertura: 'IDA' | 'IDA_Y_VUELTA' | 'RETORNO';
+  ruta: RutaCotizacionDto;
   detalle?: DetalleCotizacionDto;
 }

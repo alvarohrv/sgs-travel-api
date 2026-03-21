@@ -1,5 +1,6 @@
 export class SegmentoBoletoDto {
-  tipo_segmento: 'IDA' | 'VUELTA' | 'ESCALA'
+  tipo_segmento: 'IDA' | 'VUELTA'
+  estado?: string
   aerolinea?: string
   codigo_reserva?: string
   numero_tiquete?: string
@@ -11,9 +12,15 @@ export class SegmentoBoletoDto {
   url_archivo_adjunto?: string
 }
 
+export class RutaBoletoDto {
+  origen: string
+  destino: string
+}
+
 export class EmitirBoletoDto {
   reemplaza_boleto_id?: number | null
   cobertura: string
+  ruta: RutaBoletoDto
   valor_final?: number
   comentario?: string
   segmentos: SegmentoBoletoDto[]

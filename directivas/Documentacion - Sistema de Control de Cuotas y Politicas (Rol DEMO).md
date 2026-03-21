@@ -3,19 +3,35 @@
 
 Esta implementación establece un **Patrón de Seguridad Híbrido** en NestJS. Mientras que los usuarios `ADMIN` y `SOLICITANTE` operan bajo reglas estándar de RBAC (Control de Acceso Basado en Roles), el usuario `DEMO` está sujeto a una capa adicional de **Políticas de Negocio** que controlan su consumo de recursos y sus permisos.
 
+- Se creó una capa específica para políticas del rol DEMO.
+- Se aplicó control de cuotas en creación y control de ownership en acciones de negocio.
+
 ## 1. Arquitectura de Archivos y Funcionalidades
 
 ### Capa de Decoradores y Guards - Decorador @DemoPolicy Guard 'DemoPolicyGuard'
 
 * **`demo-policy.decorator.ts`**: Define el decorador `@DemoPolicy(recurso, accion)`. Permite marcar endpoints específicos para que el sistema sepa qué tipo de cuota debe validar (ej. 'solicitud', 'create').
+- Se usa para marcar rutas con metadata de recurso y acción.
+- Ejemplo conceptual: recurso solicitud, acción create.
+- Sirve para que el guard sepa qué validar.
 
 * **`demo-policy.guard.ts`**: Es el "guard" especializado (Implementa el DemoPolicyGuard). Solo se activa si el usuario tiene el rol `DEMO`. Intercepta la petición, lee la metadata del decorador y consulta al servicio de políticas (DemoPolicyService), si el usuario aún tiene cupo disponible. Por diseño, su lógica de control de cuotas se aplica únicamente a los endpoints de creación de los recursos definidos en el mismo 'guard'.
-
+- Se ejecuta en rutas que tienen esa metadata.
+- Solo valida cuota de creación cuando la acción es create.
+- Usa DemoPolicyService para consultar contador diario del DEMO.
 
 Su función es interceptar la petición, extraer la metadata del decorador y consultar al fffff si el usuario cuenta con cupo disponible. .
 
+* **`DemoPolicyService`** servicio de políticas:
+- Aplica las reglas DEMO reales:
+- Cuotas por recurso: solicitudes 5, cotizaciones 10, boletos 15.
+- Reset diario por fecha usando ultima_actualizacion.
+- Incremento de contadores tras creación exitosa.
+- Decremento implementado para solicitud eliminada.
+- Ownership checks para impedir que DEMO modifique entidades de otros.
 
-### Capa de Lógica de Negocio  - Como SERVICIO
+
+### Capa de Lógica de Negocio  - Como SERVICIO - DemoPolicyService
 
 * **`demo-policy.service.ts`**: Contiene la lógica para:
 
@@ -33,10 +49,17 @@ Su función es interceptar la petición, extraer la metadata del decorador y con
 
 Cuando se realiza una petición (ej. `POST /solicitudes`), el flujo sigue este orden jerárquico:
 
-1.  **Autenticación (`JwtAuthGuard`)**: Identifica al usuario mediante el token.
+1.  **Autenticación (`JwtAuthGuard`)**: Identifica al usuario mediante el token. (coloca user en req.user.)
 2.  **Autorización de Rol (`RolesGuard`)**: Verifica si el rol (`ADMIN`, `DEMO`, etc.) tiene permiso general para el endpoint.
-3.  **Política de Cuota (`DemoPolicyGuard`)**: Si el usuario es `DEMO`, este guardia verifica en la DB si tiene cupo. Si llegó al límite (ej. 5 solicitudes), bloquea la petición con un error `403 Forbidden`.
-4.  **Lógica del Servicio**: Si el guardia permite el paso, el servicio correspondiente realiza la acción y llama al `DemoPolicyService` para incrementar el contador.
+3.  Si la ruta tiene `DemoPolicy` y acción create, DemoPolicyGuard valida cuota DEMO.
+4.  **Política de Cuota (`DemoPolicyGuard`)**: Si el usuario es `DEMO`, este guardia verifica en la DB si tiene cupo. Si llegó al límite (ej. 5 solicitudes), bloquea la petición con un error `403 Forbidden`.
+5. En el controlador se pasa req.user.id y req.user.role al servicio.
+6.  **Lógica del Servicio**: Si el guardia permite el paso, el servicio correspondiente realiza la acción y llama al `DemoPolicyService` para incrementar el contador.
+En el servicio DemoPolicyService:
+- si es DEMO, valida ownership para operaciones de modificación.
+- si es create, valida/incrementa cuota.
+- si cambia de día, resetea contadores antes de validar.
+
 
 ---
 
@@ -86,3 +109,5 @@ Untracked files:
         src/modules/solicitud/dto/cerrar-solicitud.dto.ts
         src/modules/solicitud/dto/eliminar-solicitudes-usuario.dto.ts
 ~~~
+
+
