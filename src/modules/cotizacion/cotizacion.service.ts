@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { DemoPolicyService } from '../../auth/demo-policy.service';
@@ -291,6 +292,7 @@ export class CotizacionService {
     const cotizacion = await this.prisma.cotizacion.create({
       data: {
         solicitud_id: solicitudId,
+        cargada_usuario_id: usuarioId,
         cotizacion_anterior_id: data.cotizacion_anterior_id ?? null,
         estado_actual_id: estadoCotizacionNueva.id,
         valor_total: data.valor_total,
@@ -506,6 +508,13 @@ export class CotizacionService {
       throw new NotFoundException(
         `Cotización con ID ${cotizacionId} no encontrada`,
       );
+    }
+
+    const rolNormalizado = (userRole ?? '').trim().toUpperCase()
+    if (rolNormalizado === 'SOLICITANTE' && cotizacion.solicitud.usuario_id !== usuarioId) {
+      throw new ForbiddenException(
+        'No autorizado: un solicitante solo puede rechazar cotizaciones de solicitudes creadas por el mismo usuario',
+      )
     }
 
     if (
@@ -846,12 +855,29 @@ export class CotizacionService {
 
     const cotizacion = await this.prisma.cotizacion.findUnique({
       where: { id: cotizacionId },
-      include: { estado_cotizacion: true },
+      include: {
+        estado_cotizacion: true,
+        solicitud: {
+          select: {
+            usuario_id: true,
+          },
+        },
+      },
     });
 
     if (!cotizacion) {
       throw new NotFoundException(
         `Cotización con ID ${cotizacionId} no encontrada`,
+      );
+    }
+
+    const rolNormalizado = (userRole ?? '').trim().toUpperCase();
+    if (
+      rolNormalizado === 'SOLICITANTE' &&
+      cotizacion.solicitud.usuario_id !== usuarioId
+    ) {
+      throw new ForbiddenException(
+        'No autorizado: un solicitante solo puede reportar novedad en cotizaciones de solicitudes creadas por el mismo usuario',
       );
     }
 
@@ -1110,8 +1136,13 @@ export class CotizacionService {
           orderBy: { created_at: 'asc' },
         },
         solicitud: {
-          include: {
-            estado_solicitud: true,
+          select: {
+            usuario: {
+              select: {
+                id: true,
+                nombre: true,
+              },
+            },
             detalle_vuelo_solicitud: {
               select: {
                 origen: true,
@@ -1122,11 +1153,25 @@ export class CotizacionService {
             },
           },
         },
-        boleto: { include: { estado_boleto: true } },
-        historial_estado_cotizacion: {
+        boleto: {
           include: {
-            estado_cotizacion: true,
-            usuario: { select: { id: true, nombre: true, username: true } },
+            estado_boleto: true,
+            emitido_por_usuario: {
+              select: {
+                id: true,
+                nombre: true,
+              },
+            },
+            segmento_boleto: {
+              include: {
+                estado_segmento_boleto: {
+                  select: {
+                    estado: true,
+                  },
+                },
+              },
+              orderBy: { id: 'asc' },
+            },
           },
           orderBy: { created_at: 'desc' },
         },
@@ -1138,20 +1183,78 @@ export class CotizacionService {
     }
 
     const detalleRuta = cotizacion.solicitud.detalle_vuelo_solicitud?.[0];
-    const { detalle_vuelo_solicitud, ...solicitudBase } = cotizacion.solicitud;
+    const usuarioSolicitante = cotizacion.solicitud.usuario;
+    const usuarioEmiteBoleto = cotizacion.boleto[0]?.emitido_por_usuario ?? null;
     const detalle = this.construirDetalleDesdeSegmentos(cotizacion.segmento_cotizacion);
-    const { segmento_cotizacion, ...cotizacionBase } = cotizacion;
+    const boletos = cotizacion.boleto.map((boleto) => ({
+      id: boleto.id,
+      cotizacion_id: boleto.cotizacion_id,
+      solicitud_id: cotizacion.solicitud_id,
+      reemplaza_boleto_id: boleto.reemplaza_boleto_id,
+      usuario_solicitante: {
+        id: usuarioSolicitante.id,
+        nombre: usuarioSolicitante.nombre,
+      },
+      usuario_generador_boleto: {
+        id: boleto.emitido_por_usuario.id,
+        nombre: boleto.emitido_por_usuario.nombre,
+      },
+      estado_boleto: {
+        id: boleto.estado_boleto.id,
+        estado: boleto.estado_boleto.estado,
+        slug: boleto.estado_boleto.slug,
+        editable: boleto.estado_boleto.editable,
+        created_at: boleto.estado_boleto.created_at,
+      },
+      cobertura: boleto.cobertura,
+      valor_final: boleto.valor_final,
+      created_at: boleto.created_at,
+      ruta: {
+        origen: detalleRuta?.origen ?? null,
+        destino: detalleRuta?.destino ?? null,
+      },
+      segmentos: boleto.segmento_boleto.map((segmento) => ({
+        tipo_segmento: segmento.tipo_segmento,
+        aerolinea: segmento.aerolinea,
+        codigo_reserva: segmento.codigo_reserva,
+        numero_tiquete: segmento.numero_tiquete,
+        numero_vuelo: segmento.numero_vuelo,
+        fecha_vuelo: this.formatearFechaSoloDia(segmento.fecha_vuelo),
+        fecha_compra: this.formatearFechaSoloDia(segmento.fecha_compra),
+        clase_tarifaria: segmento.clase_tarifaria,
+        politica_equipaje: segmento.politica_equipaje,
+        url_archivo_adjunto: segmento.url_archivo_adjunto,
+        estado: segmento.estado_segmento_boleto.estado,
+      })),
+    }));
 
     const cotizacionConRuta = {
-      ...cotizacionBase,
-      solicitud: {
-        ...solicitudBase,
-        ruta: {
-          origen: detalleRuta?.origen ?? null,
-          destino: detalleRuta?.destino ?? null,
-        },
+      id: cotizacion.id,
+      solicitud_id: cotizacion.solicitud_id,
+      cotizacion_anterior_id: cotizacion.cotizacion_anterior_id,
+      usuario_solicitante: {
+        id: usuarioSolicitante.id,
+        nombre: usuarioSolicitante.nombre,
+      },
+      usuario_emite_boleto: usuarioEmiteBoleto
+        ? {
+            id: usuarioEmiteBoleto.id,
+            nombre: usuarioEmiteBoleto.nombre,
+          }
+        : null,
+      estado_actual_id: cotizacion.estado_actual_id,
+      cobertura: cotizacion.cobertura,
+      valor_total: cotizacion.valor_total,
+      created_at: cotizacion.created_at,
+      updated_at: cotizacion.updated_at,
+      closed_at: cotizacion.closed_at,
+      estado_cotizacion: cotizacion.estado_cotizacion,
+      ruta: {
+        origen: detalleRuta?.origen ?? null,
+        destino: detalleRuta?.destino ?? null,
       },
       detalle,
+      boleto: boletos,
     };
 
     return {
@@ -1159,5 +1262,53 @@ export class CotizacionService {
       message: 'Cotización obtenida correctamente',
       data: { cotizacion: cotizacionConRuta },
     };
+  }
+
+  /**
+   * Obtener historial de estados de una cotización por ID
+   * URL: GET /cotizacion/:id/historial-estado
+   */
+  async obtenerHistorialPorCotizacionId(cotizacionId: number) {
+    const cotizacion = await this.prisma.cotizacion.findUnique({
+      where: { id: cotizacionId },
+      select: {
+        id: true,
+      },
+    })
+
+    if (!cotizacion) {
+      throw new NotFoundException(`Cotización con ID ${cotizacionId} no encontrada`)
+    }
+
+    const historial = await this.prisma.historial_estado_cotizacion.findMany({
+      where: { cotizacion_id: cotizacionId },
+      include: {
+        estado_cotizacion: {
+          select: {
+            id: true,
+            estado: true,
+            slug: true,
+          },
+        },
+        usuario: {
+          select: {
+            id: true,
+            nombre: true,
+            username: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    })
+
+    return {
+      success: true,
+      message: 'Historial de cotización obtenido correctamente',
+      data: {
+        cotizacion_id: cotizacionId,
+        historial_estado_cotizacion: historial,
+        total: historial.length,
+      },
+    }
   }
 }

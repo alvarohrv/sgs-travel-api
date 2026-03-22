@@ -245,6 +245,7 @@ export class BoletoService {
 				data: {
 					cotizacion_id: cotizacionId,
 					reemplaza_boleto_id: data.reemplaza_boleto_id ?? null,
+					emitido_usuario_id: usuarioId,
 					estado_actual_id: estadoBoletoEmitido.id,
 					cobertura: data.cobertura,
 					valor_final: data.valor_final ?? null,
@@ -736,6 +737,7 @@ export class BoletoService {
 				data: {
 					cotizacion_id: boletoExistente.cotizacion_id,
 					reemplaza_boleto_id: boletoId,
+					emitido_usuario_id: usuarioId,
 					estado_actual_id: estadoBoletoEmitido.id,
 					cobertura: data.cobertura,
 					valor_final: data.valor_final ?? null,
@@ -828,6 +830,159 @@ export class BoletoService {
 						new_state: 'BOLETO EMITIDO',
 					},
 				],
+			},
+		};
+	}
+
+	async obtenerPorId(boletoId: number) {
+		const boleto = await this.prisma.boleto.findUnique({
+			where: { id: boletoId },
+			include: {
+				estado_boleto: true,
+				emitido_por_usuario: {
+					select: {
+						id: true,
+						nombre: true,
+					},
+				},
+				cotizacion: {
+					select: {
+						id: true,
+						solicitud_id: true,
+						solicitud: {
+							select: {
+								usuario: {
+									select: {
+										id: true,
+										nombre: true,
+									},
+								},
+								detalle_vuelo_solicitud: {
+									select: {
+										origen: true,
+										destino: true,
+									},
+									take: 1,
+									orderBy: { created_at: 'desc' },
+								},
+							},
+						},
+					},
+				},
+				segmento_boleto: {
+					include: {
+						estado_segmento_boleto: {
+							select: {
+								estado: true,
+							},
+						},
+					},
+					orderBy: { id: 'asc' },
+				},
+			},
+		});
+
+		if (!boleto) {
+			throw new NotFoundException(`Boleto con ID ${boletoId} no encontrado`);
+		}
+
+		const ruta = boleto.cotizacion.solicitud.detalle_vuelo_solicitud[0] ?? null;
+
+		return {
+			success: true,
+			message: 'Boleto obtenido correctamente',
+			data: {
+				boleto: {
+					id: boleto.id,
+					cotizacion_id: boleto.cotizacion.id,
+					solicitud_id: boleto.cotizacion.solicitud_id,
+					reemplaza_boleto_id: boleto.reemplaza_boleto_id,
+					usuario_solicitante: {
+						id: boleto.cotizacion.solicitud.usuario.id,
+						nombre: boleto.cotizacion.solicitud.usuario.nombre,
+					},
+					usuario_generador_boleto: {
+						id: boleto.emitido_por_usuario.id,
+						nombre: boleto.emitido_por_usuario.nombre,
+					},
+					estado_boleto: {
+						id: boleto.estado_boleto.id,
+						estado: boleto.estado_boleto.estado,
+						slug: boleto.estado_boleto.slug,
+						editable: boleto.estado_boleto.editable,
+						created_at: boleto.estado_boleto.created_at,
+					},
+					cobertura: boleto.cobertura,
+					valor_final: boleto.valor_final,
+					created_at: boleto.created_at,
+					ruta: ruta
+						? {
+							origen: ruta.origen,
+							destino: ruta.destino,
+						}
+						: null,
+					segmentos: boleto.segmento_boleto.map((segmento) => ({
+						tipo_segmento: segmento.tipo_segmento,
+						aerolinea: segmento.aerolinea,
+						codigo_reserva: segmento.codigo_reserva,
+						numero_tiquete: segmento.numero_tiquete,
+						numero_vuelo: segmento.numero_vuelo,
+						fecha_vuelo: segmento.fecha_vuelo.toISOString().slice(0, 10),
+						fecha_compra: segmento.fecha_compra ? segmento.fecha_compra.toISOString().slice(0, 10) : null,
+						clase_tarifaria: segmento.clase_tarifaria,
+						politica_equipaje: segmento.politica_equipaje,
+						url_archivo_adjunto: segmento.url_archivo_adjunto,
+						estado: segmento.estado_segmento_boleto.estado,
+					})),
+				},
+			},
+		};
+	}
+
+	/**
+	 * Obtener historial de estados de un boleto por ID
+	 * URL: GET /boleto/:id/historial-estado
+	 */
+	async obtenerHistorialPorBoletoId(boletoId: number) {
+		const boleto = await this.prisma.boleto.findUnique({
+			where: { id: boletoId },
+			select: {
+				id: true,
+			},
+		});
+
+		if (!boleto) {
+			throw new NotFoundException(`Boleto con ID ${boletoId} no encontrado`);
+		}
+
+		const historial = await this.prisma.historial_estado_boleto.findMany({
+			where: { boleto_id: boletoId },
+			include: {
+				estado_boleto: {
+					select: {
+						id: true,
+						estado: true,
+						slug: true,
+					},
+				},
+				usuario: {
+					select: {
+						id: true,
+						nombre: true,
+						username: true,
+					},
+				},
+			},
+			orderBy: { created_at: 'desc' },
+		});
+
+		return {
+			success: true,
+			message: 'Historial de boleto obtenido correctamente',
+			data: {
+				boleto_id: boletoId,
+				historial_estado_boleto: historial,
+				total: historial.length,
 			},
 		};
 	}

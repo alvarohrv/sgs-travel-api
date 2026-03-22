@@ -36,7 +36,123 @@ export class SolicitudService {
     return fecha.toISOString().slice(0, 10)
   }
 
-  private enriquecerConDetalleVuelo<T extends { detalle_vuelo_solicitud?: Array<{
+  private construirDetalleCotizacionDesdeSegmentos(
+    segmentos: Array<{
+      aerolinea: string | null
+      tipo_segmento: 'IDA' | 'VUELTA' | 'ESCALA'
+      numero_vuelo: string
+      fecha_vuelo: Date
+      clase_tarifaria: string | null
+      politica_equipaje: string | null
+    }>,
+  ) {
+    const segmentoIda = segmentos.find((segmento) => segmento.tipo_segmento === 'IDA')
+    const segmentoVuelta = segmentos.find((segmento) => segmento.tipo_segmento === 'VUELTA')
+
+    const mapearSegmento = (segmento?: {
+      aerolinea: string | null
+      numero_vuelo: string
+      fecha_vuelo: Date
+      clase_tarifaria: string | null
+      politica_equipaje: string | null
+    }) => {
+      if (!segmento) {
+        return null
+      }
+
+      return {
+        aerolinea: segmento.aerolinea,
+        fecha: this.formatearFechaSoloDia(segmento.fecha_vuelo),
+        vuelo: segmento.numero_vuelo,
+        clase_tarifaria: segmento.clase_tarifaria,
+        politica_equipaje: segmento.politica_equipaje,
+      }
+    }
+
+    const ida = mapearSegmento(segmentoIda ?? segmentoVuelta)
+    const vuelta = mapearSegmento(segmentoVuelta)
+
+    if (!ida) {
+      return null
+    }
+
+    return vuelta ? { ida, vuelta } : { ida }
+  }
+
+  private mapearCotizacionCompleta(
+    cotizacion: any,
+    solicitudMeta: {
+      solicitud_id: number
+      usuario_solicitante: { id: number; nombre: string } | null
+      ruta: { origen: string | null; destino: string | null }
+    },
+  ) {
+    const detalle = this.construirDetalleCotizacionDesdeSegmentos(cotizacion.segmento_cotizacion ?? [])
+    const usuarioEmiteBoleto = cotizacion.boleto?.[0]?.emitido_por_usuario ?? null
+
+    const boletos = (cotizacion.boleto ?? []).map((boleto: any) => ({
+      id: boleto.id,
+      cotizacion_id: boleto.cotizacion_id,
+      solicitud_id: solicitudMeta.solicitud_id,
+      reemplaza_boleto_id: boleto.reemplaza_boleto_id,
+      usuario_solicitante: solicitudMeta.usuario_solicitante,
+      usuario_generador_boleto: boleto.emitido_por_usuario
+        ? {
+            id: boleto.emitido_por_usuario.id,
+            nombre: boleto.emitido_por_usuario.nombre,
+          }
+        : null,
+      estado_boleto: {
+        id: boleto.estado_boleto.id,
+        estado: boleto.estado_boleto.estado,
+        slug: boleto.estado_boleto.slug,
+        editable: boleto.estado_boleto.editable,
+        created_at: boleto.estado_boleto.created_at,
+      },
+      cobertura: boleto.cobertura,
+      valor_final: boleto.valor_final,
+      created_at: boleto.created_at,
+      ruta: solicitudMeta.ruta,
+      segmentos: (boleto.segmento_boleto ?? []).map((segmento: any) => ({
+        tipo_segmento: segmento.tipo_segmento,
+        aerolinea: segmento.aerolinea,
+        codigo_reserva: segmento.codigo_reserva,
+        numero_tiquete: segmento.numero_tiquete,
+        numero_vuelo: segmento.numero_vuelo,
+        fecha_vuelo: this.formatearFechaSoloDia(segmento.fecha_vuelo),
+        fecha_compra: this.formatearFechaSoloDia(segmento.fecha_compra),
+        clase_tarifaria: segmento.clase_tarifaria,
+        politica_equipaje: segmento.politica_equipaje,
+        url_archivo_adjunto: segmento.url_archivo_adjunto,
+        estado: segmento.estado_segmento_boleto.estado,
+      })),
+    }))
+
+    return {
+      id: cotizacion.id,
+      solicitud_id: cotizacion.solicitud_id,
+      cotizacion_anterior_id: cotizacion.cotizacion_anterior_id,
+      usuario_solicitante: solicitudMeta.usuario_solicitante,
+      usuario_emite_boleto: usuarioEmiteBoleto
+        ? {
+            id: usuarioEmiteBoleto.id,
+            nombre: usuarioEmiteBoleto.nombre,
+          }
+        : null,
+      estado_actual_id: cotizacion.estado_actual_id,
+      cobertura: cotizacion.cobertura,
+      valor_total: cotizacion.valor_total,
+      created_at: cotizacion.created_at,
+      updated_at: cotizacion.updated_at,
+      closed_at: cotizacion.closed_at,
+      estado_cotizacion: cotizacion.estado_cotizacion,
+      ruta: solicitudMeta.ruta,
+      detalle,
+      boleto: boletos,
+    }
+  }
+
+  private enriquecerConDetalleVuelo<T extends { id: number; detalle_vuelo_solicitud?: Array<{
     origen: string
     destino: string
     preferencia_aerolinea: string | null
@@ -44,21 +160,76 @@ export class SolicitudService {
     fecha_vuelta: Date | null
   }> }>(solicitud: T) {
     const detalle = solicitud.detalle_vuelo_solicitud?.[0]
-    const { detalle_vuelo_solicitud, ...solicitudBase } = solicitud as T & {
+    const {
+      detalle_vuelo_solicitud,
+      cotizacion,
+      estado_solicitud,
+      historial_estado_solicitud,
+      ...solicitudBase
+    } = solicitud as T & {
       detalle_vuelo_solicitud?: unknown
+      cotizacion?: any[]
+      estado_solicitud?: {
+        id: number
+        estado: string
+        slug: string
+        editable: boolean | null
+        created_at: Date
+      }
+      historial_estado_solicitud?: unknown
+      usuario?: {
+        id: number
+        nombre: string
+      }
     }
+
+    const ruta = {
+      origen: detalle?.origen ?? null,
+      destino: detalle?.destino ?? null,
+      preferencia_aerolinea: detalle?.preferencia_aerolinea ?? null,
+    }
+
+    const fechas = {
+      ida: this.formatearFechaSoloDia(detalle?.fecha_ida),
+      vuelta: this.formatearFechaSoloDia(detalle?.fecha_vuelta),
+    }
+
+    const estadoSolicitudLimpio = estado_solicitud
+      ? {
+          id: estado_solicitud.id,
+          estado: estado_solicitud.estado,
+          slug: estado_solicitud.slug,
+          editable: estado_solicitud.editable,
+          created_at: estado_solicitud.created_at,
+        }
+      : null
+
+    const usuarioSolicitante = solicitudBase.usuario
+      ? {
+          id: solicitudBase.usuario.id,
+          nombre: solicitudBase.usuario.nombre,
+        }
+      : null
+
+    const cotizacionesCompletas = Array.isArray(cotizacion)
+      ? cotizacion.map((item) =>
+          this.mapearCotizacionCompleta(item, {
+            solicitud_id: solicitud.id,
+            usuario_solicitante: usuarioSolicitante,
+            ruta: {
+              origen: ruta.origen,
+              destino: ruta.destino,
+            },
+          }),
+        )
+      : cotizacion
 
     return {
       ...solicitudBase,
-      ruta: {
-        origen: detalle?.origen ?? null,
-        destino: detalle?.destino ?? null,
-        preferencia_aerolinea: detalle?.preferencia_aerolinea ?? null,
-      },
-      fechas: {
-        ida: this.formatearFechaSoloDia(detalle?.fecha_ida),
-        vuelta: this.formatearFechaSoloDia(detalle?.fecha_vuelta),
-      },
+      estado_solicitud: estadoSolicitudLimpio,
+      ruta,
+      fechas,
+      cotizacion: cotizacionesCompletas,
     }
   }
 
@@ -219,7 +390,42 @@ export class SolicitudService {
           },
           estado_solicitud: true,
           cotizacion: {
-            include: { estado_cotizacion: true }
+            include: {
+              estado_cotizacion: true,
+              segmento_cotizacion: {
+                select: {
+                  aerolinea: true,
+                  tipo_segmento: true,
+                  numero_vuelo: true,
+                  fecha_vuelo: true,
+                  clase_tarifaria: true,
+                  politica_equipaje: true,
+                },
+                orderBy: { created_at: 'asc' },
+              },
+              boleto: {
+                include: {
+                  estado_boleto: true,
+                  emitido_por_usuario: {
+                    select: {
+                      id: true,
+                      nombre: true,
+                    },
+                  },
+                  segmento_boleto: {
+                    include: {
+                      estado_segmento_boleto: {
+                        select: {
+                          estado: true,
+                        },
+                      },
+                    },
+                    orderBy: { id: 'asc' },
+                  },
+                },
+                orderBy: { created_at: 'desc' },
+              },
+            }
           },
           detalle_vuelo_solicitud: {
             select: {
@@ -293,9 +499,36 @@ export class SolicitudService {
         cotizacion: {
           include: {
             estado_cotizacion: true,
+            segmento_cotizacion: {
+              select: {
+                aerolinea: true,
+                tipo_segmento: true,
+                numero_vuelo: true,
+                fecha_vuelo: true,
+                clase_tarifaria: true,
+                politica_equipaje: true,
+              },
+              orderBy: { created_at: 'asc' },
+            },
             boleto: {
               include: {
-                estado_boleto: true
+                estado_boleto: true,
+                emitido_por_usuario: {
+                  select: {
+                    id: true,
+                    nombre: true,
+                  },
+                },
+                segmento_boleto: {
+                  include: {
+                    estado_segmento_boleto: {
+                      select: {
+                        estado: true,
+                      },
+                    },
+                  },
+                  orderBy: { id: 'asc' },
+                },
               }
             }
           }
@@ -313,21 +546,6 @@ export class SolicitudService {
             created_at: 'desc',
           },
         },
-        historial_estado_solicitud: {
-          include: {
-            estado_solicitud: true,
-            usuario: {
-              select: {
-                id: true,
-                nombre: true,
-                username: true
-              }
-            }
-          },
-          orderBy: {
-            created_at: 'desc'
-          }
-        }
       }
     })
 
@@ -341,6 +559,56 @@ export class SolicitudService {
       data: {
         solicitud: this.enriquecerConDetalleVuelo(solicitud)
       }
+    }
+  }
+
+  /**
+   * Obtener historial de estados de una solicitud por ID
+   * URL: GET /solicitud/:id/historial-estado
+   */
+  async obtenerHistorialPorSolicitudId(solicitudId: number): Promise<RespuestaApiEstandar> {
+    const solicitud = await this.prisma.solicitud.findUnique({
+      where: { id: solicitudId },
+      select: {
+        id: true,
+      },
+    })
+
+    if (!solicitud) {
+      throw new NotFoundException(`Solicitud con ID ${solicitudId} no encontrada`)
+    }
+
+    const historial = await this.prisma.historial_estado_solicitud.findMany({
+      where: { solicitud_id: solicitudId },
+      include: {
+        estado_solicitud: {
+          select: {
+            id: true,
+            estado: true,
+            slug: true,
+            editable: true,
+            created_at: true,
+          },
+        },
+        usuario: {
+          select: {
+            id: true,
+            nombre: true,
+            username: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    })
+
+    return {
+      success: true,
+      message: 'Historial de solicitud obtenido correctamente',
+      data: {
+        solicitud_id: solicitudId,
+        historial_estado_solicitud: historial,
+        total: historial.length,
+      },
     }
   }
 

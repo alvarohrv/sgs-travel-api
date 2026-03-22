@@ -3,6 +3,10 @@
 
     ////???? PENDIENTE PROBAR DE NUEVO ENDPOINT GET para documentar finalmente luego de los cambios!!!!!!!!!!!!
 
+
+
+    ///// ???? validar si un solicitante puede RECHAZAR una cotizacion que no es suya.
+
 /*
 ═══════════════════════════════════════════════════════════════════════════
   CONTROLADOR: COTIZACION
@@ -124,50 +128,49 @@ export class CotizacionController {
 
 
   RESPUESTA (nueva cotización)::
-  {
-      "success": true,
-      "message": "Cotización creada correctamente",
-      "data": {
-          "cotizacion": {
-              "id": 5,
-              "solicitud_id": 2,
-              "cotizacion_anterior_id": null,
-              "estado": "COTIZACION NUEVA",
-              "valor_total": "850000",
-              "moneda": "COP",
-              "cobertura": "IDA_Y_VUELTA",
-              "ruta": {
+{
+    "success": true,
+    "message": "Cotización creada correctamente",
+    "data": {
+        "cotizacion": {
+            "id": 5,
+            "solicitud_id": 2,
+            "cotizacion_anterior_id": null,
+            "estado": "COTIZACION NUEVA",
+            "valor_total": "850000",
+            "moneda": "COP",
+            "cobertura": "IDA_Y_VUELTA",
+            "ruta": {
                 "origen": "Bogota",
-                "destino": "Cartagena",
-              },
-              },
-              "detalle": {
-                  "ida": {
-                      "aerolinea": "Wingo",
-                      "fecha": "2026-05-02",
-                      "vuelo": "WA123",
-                      "clase_tarifaria": "ECONOMICA"
-                  },
-                  "vuelta": {
-                      "aerolinea": "Wingo",
-                      "fecha": "2026-05-15",
-                      "vuelo": "WA456"
-                  }
-              },
-              "created_at": "2026-03-11T22:42:30.000Z"
-          }
-      },
-      "event": {
-          "type": "COTIZACION_CREADA",
-          "affected_entities": [
-              {
-                  "entity": "solicitud",
-                  "id": 2,
-                  "new_state": "COTIZACION CARGADA"
-              }
-          ]
-      }
-  }
+                "destino": "Cartagena"
+            },
+            "detalle": {
+                "ida": {
+                    "aerolinea": "Wingo",
+                    "fecha": "2026-02-02",
+                    "vuelo": "WA123",
+                    "clase_tarifaria": "ECONOMICA"
+                },
+                "vuelta": {
+                    "aerolinea": "Wingo",
+                    "fecha": "2026-03-15",
+                    "vuelo": "WA456"
+                }
+            },
+            "created_at": "2026-03-21T20:05:02.000Z"
+        }
+    },
+    "event": {
+        "type": "COTIZACION_CREADA",
+        "affected_entities": [
+            {
+                "entity": "solicitud",
+                "id": 2,
+                "new_state": "COTIZACION CARGADA"
+            }
+        ]
+    }
+}
 
   BODY (Para crear una cotizacion adicional para esta solicitud):
   {
@@ -216,7 +219,7 @@ export class CotizacionController {
             Ej: POST http://localhost:3000/cotizacion/5/novedad
   BODY:
   {
-    "comentario": "El vuelo no podra ser ese dia, ubicar el vuelo mas proximo porfavor" 
+    "comentario": "El vuelo de ida no podra ser ese dia, ubicar el vuelo mas proximo porfavor" 
   }
   RESPUESTA:
   {
@@ -227,7 +230,7 @@ export class CotizacionController {
               "id": 5,
               "estado": "NOVEDAD"
           },
-          "comentario": "El vuelo no podra ser ese dia, ubicar el vuelo mas proximo porfavor"
+          "comentario": "El vuelo de ida no podra ser ese dia, ubicar el vuelo mas proximo porfavor"
       },
       "event": {
           "type": "COTIZACION_NOVEDAD",
@@ -283,7 +286,7 @@ export class CotizacionController {
   ENDPOINT: POST /solicitud/:solicitudId/cotizacion/:cotizacionId/reemplazar
               Ej: http://localhost:3000/solicitud/2/cotizacion/5/reemplazar
 
-              BODY (nueva cotización):
+BODY (nueva cotización):
   {
     "valor_total": 860000,
     "moneda": "COP",
@@ -311,56 +314,56 @@ export class CotizacionController {
 
 
   RESPUESTA EN CASO DE REMPLAZO:
-  {
-      "success": true,
-      "message": "Cotización reemplazada correctamente",
-      "data": {
-          "cotizacion": {
-              "id": 9,
-              "solicitud_id": 2,
-              "cotizacion_anterior_id": 5,
-              "estado": "COTIZACION NUEVA",
-              "valor_total": "860000",
-              "moneda": "COP",
-              "cobertura": "IDA_Y_VUELTA",
-              "ruta": {
-                  "origen": "Bogota",
-                  "destino": "Cartagena"
-              },
-              "detalle": {
-                  "ida": {
-                      "aerolinea": "LATAM",
-                      "fecha": "2026-02-03",
-                      "vuelo": "LA129",
-                      "clase_tarifaria": "ECONOMICA",
-                      "politica_equipaje": "1 maleta de 23kg incluida"
-                  },
-                  "vuelta": {
-                      "aerolinea": "Wingo",
-                      "fecha": "2026-03-15",
-                      "vuelo": "WA456",
-                      "clase_tarifaria": "ECONOMICA"
-                  }
-              },
-              "created_at": "2026-03-20T20:17:24.000Z"
-          }
-      },
-      "event": {
-          "type": "COTIZACION_REEMPLAZADA",
-          "affected_entities": [
-              {
-                  "entity": "cotizacion",
-                  "id": 5,
-                  "new_state": "COTIZACION ANULADA"
-              },
-              {
-                  "entity": "solicitud",
-                  "id": 2,
-                  "new_state": "COTIZACION CARGADA"
-              }
-          ]
-      }
-  }
+{
+    "success": true,
+    "message": "Cotización reemplazada correctamente",
+    "data": {
+        "cotizacion": {
+            "id": 7,
+            "solicitud_id": 2,
+            "cotizacion_anterior_id": 5,
+            "estado": "COTIZACION NUEVA",
+            "valor_total": "860000",
+            "moneda": "COP",
+            "cobertura": "IDA_Y_VUELTA",
+            "ruta": {
+                "origen": "Bogota",
+                "destino": "Cartagena"
+            },
+            "detalle": {
+                "ida": {
+                    "aerolinea": "LATAM",
+                    "fecha": "2026-02-03",
+                    "vuelo": "LA129",
+                    "clase_tarifaria": "ECONOMICA",
+                    "politica_equipaje": "1 maleta de 23kg incluida"
+                },
+                "vuelta": {
+                    "aerolinea": "Wingo",
+                    "fecha": "2026-03-15",
+                    "vuelo": "WA456",
+                    "clase_tarifaria": "ECONOMICA"
+                }
+            },
+            "created_at": "2026-03-22T05:00:22.000Z"
+        }
+    },
+    "event": {
+        "type": "COTIZACION_REEMPLAZADA",
+        "affected_entities": [
+            {
+                "entity": "cotizacion",
+                "id": 5,
+                "new_state": "COTIZACION ANULADA"
+            },
+            {
+                "entity": "solicitud",
+                "id": 2,
+                "new_state": "COTIZACION CARGADA"
+            }
+        ]
+    }
+}
   */
 
   ////// "Aplanamiento de Rutas" ////
@@ -388,27 +391,27 @@ export class CotizacionController {
     "comentario": "El vuelo de regreso es muy tarde, necesito una opción con vuelo de vuelta más temprano." 
   }
   RESPUESTA:
-  {
-      "success": true,
-      "message": "Cotización rechazada correctamente",
-      "data": {
-          "cotizacion": {
-              "id": 7,
-              "estado": "COTIZACION RECHAZADA"
-          },
-          "comentario": "El vuelo de regreso es muy tarde, necesito una opción con vuelo de vuelta más temprano."
-      },
-      "event": {
-          "type": "COTIZACION_RECHAZADA",
-          "affected_entities": [
-              {
-                  "entity": "solicitud",
-                  "id": 2,
-                  "new_state": "EN REVISION"
-              }
-          ]
-      }
-  }
+{
+    "success": true,
+    "message": "Cotización rechazada correctamente",
+    "data": {
+        "cotizacion": {
+            "id": 7,
+            "estado": "COTIZACION RECHAZADA"
+        },
+        "comentario": "El vuelo de regreso es muy tarde, necesito una opción con vuelo de vuelta más temprano."
+    },
+    "event": {
+        "type": "COTIZACION_RECHAZADA",
+        "affected_entities": [
+            {
+                "entity": "solicitud",
+                "id": 2,
+                "new_state": "EN REVISION"
+            }
+        ]
+    }
+}
  */
 
   // 4️⃣ El admin revisa, decide NO crear una nueva cotización.
@@ -482,7 +485,7 @@ export class CotizacionController {
 
   {
     "cotizacion_primaria_id": 7,
-    "cotizacion_secundaria_id": 8,
+    "cotizacion_secundaria_id": 6,
     "comentario": "Selecciono esta opción principal y dejo otra como respaldo."
   }
   RESPUESTA:
@@ -498,21 +501,12 @@ export class CotizacionController {
                     "sub_estado": "EN REVISION"
                 },
                 "secundaria": {
-                    "id": 8,
+                    "id": 6,
                     "estado": "OPCION SECUNDARIA",
                     "sub_estado": "EN REVISION"
                 }
             },
-            "descartadas": [
-                {
-                    "id": 9,
-                    "estado": "COTIZACION DESCARTADA"
-                },
-                {
-                    "id": 10,
-                    "estado": "COTIZACION DESCARTADA"
-                },
-            ],
+            "descartadas": [],
             "anuladas_sin_cambio": [
                 {
                     "id": 5,
@@ -528,17 +522,7 @@ export class CotizacionController {
                 "entity": "solicitud",
                 "id": 2,
                 "new_state": "EN REVISION"
-            },
-            {
-                "entity": "cotizacion",
-                "id": 9,
-                "new_state": "COTIZACION DESCARTADA"
-            },
-            {
-                "entity": "cotizacion",
-                "id": 10,
-                "new_state": "COTIZACION DESCARTADA"
-            },
+            }
         ]
     }
 }
@@ -600,56 +584,293 @@ export class CotizacionController {
   async obtenerPorId(@Param('id') id: string) {
     return this.cotizacionService.obtenerPorId(Number(id))
   }
-}
+
+
 /*
-URL de ejemplo: http://localhost:3000/cotizacion/3
+URL de ejemplo: http://localhost:3000/cotizacion/7
 {
     "success": true,
     "message": "Cotización obtenida correctamente",
     "data": {
         "cotizacion": {
-            "id": 3,
-            "solicitud_id": 5,
-            "cotizacion_anterior_id": null,
-            "estado_actual_id": 1,
+            "id": 7,
+            "solicitud_id": 2,
+            "cotizacion_anterior_id": 5,
+            "usuario_solicitante": {
+                "id": 1,
+                "nombre": "Carlos"
+            },
+            "usuario_emite_boleto": {
+                "id": 3,
+                "nombre": "ar"
+            },
+            "estado_actual_id": 7,
             "cobertura": "IDA_Y_VUELTA",
-            "valor_total": "850",
-            "created_at": "2026-03-20T10:36:12.000Z",
-            "updated_at": null,
+            "valor_total": "860000",
+            "created_at": "2026-03-22T05:00:22.000Z",
+            "updated_at": "2026-03-22T05:06:36.000Z",
             "closed_at": null,
             "estado_cotizacion": {
-                "id": 1,
-                "estado": "COTIZACION NUEVA",
-                "slug": "cotizacion_nueva",
-                "editable": true,
-                "created_at": "2026-03-17T13:54:07.000Z"
+                "id": 7,
+                "estado": "COTIZACION SELECCIONADA",
+                "slug": "cotizacion_seleccionada",
+                "editable": false,
+                "created_at": "2026-03-21T23:34:07.000Z"
             },
-            "solicitud": {
-                "id": 5,
-                "radicado": "RAD-2026-033",
-                "usuario_id": 1,
-                "estado_actual_id": 3,
-                "tipo_de_vuelo": "IDA_Y_VUELTA",
-                "created_at": "2026-03-20T10:36:12.000Z",
-                "updated_at": null,
-                "closed_at": null,
-                "estado_solicitud": {
-                    "id": 3,
-                    "estado": "COTIZACION CARGADA",
-                    "slug": "cotizacion_cargada",
-                    "color_hexa_main": "#ffc107",
-                    "color_hexa_sec": "#ffda6a",
-                    "editable": true,
-                    "created_at": "2026-03-17T13:54:07.000Z"
+            "ruta": {
+                "origen": "Bogota",
+                "destino": "Cartagena"
+            },
+            "detalle": {
+                "ida": {
+                    "aerolinea": "LATAM",
+                    "fecha": "2026-02-03",
+                    "vuelo": "LA129",
+                    "clase_tarifaria": "ECONOMICA",
+                    "politica_equipaje": "1 maleta de 23kg incluida"
                 },
-                "ruta": {
-                    "origen": "Bogotá",
-                    "destino": "Cali"
+                "vuelta": {
+                    "aerolinea": "Wingo",
+                    "fecha": "2026-03-15",
+                    "vuelo": "WA456",
+                    "clase_tarifaria": "ECONOMICA",
+                    "politica_equipaje": null
                 }
             },
-            "boleto": [],
-            "historial_estado_cotizacion": []
+            "boleto": [
+                {
+                    "id": 3,
+                    "cotizacion_id": 7,
+                    "solicitud_id": 2,
+                    "reemplaza_boleto_id": 2,
+                    "usuario_solicitante": {
+                        "id": 1,
+                        "nombre": "Carlos"
+                    },
+                    "usuario_generador_boleto": {
+                        "id": 3,
+                        "nombre": "ar"
+                    },
+                    "estado_boleto": {
+                        "id": 2,
+                        "estado": "CONFORME POR EL EMPLEADO",
+                        "slug": "conforme_empleado",
+                        "editable": false,
+                        "created_at": "2026-03-21T23:34:07.000Z"
+                    },
+                    "cobertura": "IDA_Y_VUELTA",
+                    "valor_final": "840000",
+                    "created_at": "2026-03-22T05:07:25.000Z",
+                    "ruta": {
+                        "origen": "Bogota",
+                        "destino": "Cartagena"
+                    },
+                    "segmentos": [
+                        {
+                            "tipo_segmento": "IDA",
+                            "aerolinea": "LATAM",
+                            "codigo_reserva": "ZXCV12",
+                            "numero_tiquete": "987654321",
+                            "numero_vuelo": "LA148",
+                            "fecha_vuelo": "2026-02-02",
+                            "fecha_compra": "2026-02-01",
+                            "clase_tarifaria": "Económica",
+                            "politica_equipaje": "1 maleta 23kg",
+                            "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf",
+                            "estado": "REPROGRAMADO"
+                        },
+                        {
+                            "tipo_segmento": "VUELTA",
+                            "aerolinea": "Wingo",
+                            "codigo_reserva": "ZXCV12",
+                            "numero_tiquete": "5252525252",
+                            "numero_vuelo": "WA577",
+                            "fecha_vuelo": "2026-03-23",
+                            "fecha_compra": "2026-02-01",
+                            "clase_tarifaria": "Económica",
+                            "politica_equipaje": "1 maleta 23kg",
+                            "url_archivo_adjunto": "https://dominio.com/boleto/4552.pdf",
+                            "estado": "REPROGRAMADO"
+                        }
+                    ]
+                },
+                {
+                    "id": 2,
+                    "cotizacion_id": 7,
+                    "solicitud_id": 2,
+                    "reemplaza_boleto_id": null,
+                    "usuario_solicitante": {
+                        "id": 1,
+                        "nombre": "Carlos"
+                    },
+                    "usuario_generador_boleto": {
+                        "id": 3,
+                        "nombre": "ar"
+                    },
+                    "estado_boleto": {
+                        "id": 3,
+                        "estado": "BOLETO ANULADO",
+                        "slug": "boleto_anulado",
+                        "editable": false,
+                        "created_at": "2026-03-21T23:34:07.000Z"
+                    },
+                    "cobertura": "IDA_Y_VUELTA",
+                    "valor_final": "760000",
+                    "created_at": "2026-03-22T05:06:36.000Z",
+                    "ruta": {
+                        "origen": "Bogota",
+                        "destino": "Cartagena"
+                    },
+                    "segmentos": [
+                        {
+                            "tipo_segmento": "IDA",
+                            "aerolinea": "LATAM",
+                            "codigo_reserva": "ZXCV12",
+                            "numero_tiquete": "987654321",
+                            "numero_vuelo": "LA148",
+                            "fecha_vuelo": "2026-02-02",
+                            "fecha_compra": "2026-02-01",
+                            "clase_tarifaria": "Económica",
+                            "politica_equipaje": "1 maleta 23kg",
+                            "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf",
+                            "estado": "CONFIRMADO"
+                        },
+                        {
+                            "tipo_segmento": "VUELTA",
+                            "aerolinea": "Wingo",
+                            "codigo_reserva": "ZXCV12",
+                            "numero_tiquete": "987654321",
+                            "numero_vuelo": "WA755",
+                            "fecha_vuelo": "2026-03-16",
+                            "fecha_compra": "2026-02-01",
+                            "clase_tarifaria": "Económica",
+                            "politica_equipaje": "1 maleta 23kg",
+                            "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf",
+                            "estado": "CONFIRMADO"
+                        }
+                    ]
+                }
+            ]
         }
     }
 }
+
 */
+  // 7️⃣ Obtener historial de estados de una cotización por ID
+  // GET /cotizacion/:id/historial-estado
+
+  @Get('cotizacion/:id/historial-estado')
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async obtenerHistorialEstadoPorId(@Param('id') id: string) {
+    return this.cotizacionService.obtenerHistorialPorCotizacionId(Number(id))
+  }
+
+  /*
+  DESCRIPCIÓN: Obtener el historial completo de estados por los que ha pasado una cotización específica, incluyendo fechas y comentarios asociados a cada cambio de estado. Esto permite tener un seguimiento detallado de la evolución de la cotización a lo largo del tiempo.
+  ENDPOINT: GET /cotizacion/:id/historial-estado
+            Ej: http://localhost:3000/cotizacion/7/historial-estado
+    RESPUESTA:
+    {
+        "success": true,
+        "message": "Historial de cotización obtenido correctamente",
+        "data": {
+            "cotizacion_id": 7,
+            "historial_estado_cotizacion": [
+                {
+                    "id": 12,
+                    "cotizacion_id": 7,
+                    "estado_id": 7,
+                    "usuario_id": 3,
+                    "observacion": "Cotizacion seleccionada para emision de boleto",
+                    "created_at": "2026-03-22T05:06:36.000Z",
+                    "estado_cotizacion": {
+                        "id": 7,
+                        "estado": "COTIZACION SELECCIONADA",
+                        "slug": "cotizacion_seleccionada"
+                    },
+                    "usuario": {
+                        "id": 3,
+                        "nombre": "ar",
+                        "username": "ar"
+                    }
+                },
+                {
+                    "id": 10,
+                    "cotizacion_id": 7,
+                    "estado_id": 3,
+                    "usuario_id": 1,
+                    "observacion": "Seleccionada como OPCION_PRIMARIA por el solicitante. Selecciono esta opción principal y dejo otra como respaldo.",
+                    "created_at": "2026-03-22T05:05:56.000Z",
+                    "estado_cotizacion": {
+                        "id": 3,
+                        "estado": "OPCION PRIMARIA",
+                        "slug": "opcion_primaria"
+                    },
+                    "usuario": {
+                        "id": 1,
+                        "nombre": "Carlos",
+                        "username": "carlos"
+                    }
+                },
+                {
+                    "id": 8,
+                    "cotizacion_id": 7,
+                    "estado_id": 1,
+                    "usuario_id": 3,
+                    "observacion": "Cotización revisada y conservada",
+                    "created_at": "2026-03-22T05:05:05.000Z",
+                    "estado_cotizacion": {
+                        "id": 1,
+                        "estado": "COTIZACION NUEVA",
+                        "slug": "cotizacion_nueva"
+                    },
+                    "usuario": {
+                        "id": 3,
+                        "nombre": "ar",
+                        "username": "ar"
+                    }
+                },
+                {
+                    "id": 7,
+                    "cotizacion_id": 7,
+                    "estado_id": 2,
+                    "usuario_id": 1,
+                    "observacion": "RECHAZADA: El vuelo de regreso es muy tarde, necesito una opción con vuelo de vuelta más temprano.",
+                    "created_at": "2026-03-22T05:04:21.000Z",
+                    "estado_cotizacion": {
+                        "id": 2,
+                        "estado": "COTIZACION RECHAZADA",
+                        "slug": "cotizacion_rechazada"
+                    },
+                    "usuario": {
+                        "id": 1,
+                        "nombre": "Carlos",
+                        "username": "carlos"
+                    }
+                },
+                {
+                    "id": 5,
+                    "cotizacion_id": 7,
+                    "estado_id": 1,
+                    "usuario_id": 3,
+                    "observacion": "Cotización cargada - LATAM - IDA_Y_VUELTA - $860000 COP",
+                    "created_at": "2026-03-22T05:00:22.000Z",
+                    "estado_cotizacion": {
+                        "id": 1,
+                        "estado": "COTIZACION NUEVA",
+                        "slug": "cotizacion_nueva"
+                    },
+                    "usuario": {
+                        "id": 3,
+                        "nombre": "ar",
+                        "username": "ar"
+                    }
+                }
+            ],
+            "total": 5
+        }
+    }
+    
+  */
+}

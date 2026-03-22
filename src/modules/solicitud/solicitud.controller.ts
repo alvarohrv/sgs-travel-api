@@ -3,22 +3,14 @@
   ////???? PENDIENTE PROBAR ENDPOINT DE CIERRE Y GENERAR UN ENDPOINT DE REAPERTURA (solo SUPERADMIN) PARA DESMARCAR closed_at Y VOLVER A ABRIR LA SOLICITUD.
 
 
-  ////????? de las peticiones GET desacoplar el atributo 'historial_estado_solicitud' y crear un endpoint específico para consultar el historial de estados de una solicitud, por ejemplo: GET /solicitud/:id/historial. Esto evitaría que cada consulta de solicitud traiga todo el historial, lo cual puede ser innecesario en muchos casos y afectar el rendimiento.
 
   /////????? PENDIENTE en la solictud '8' rechazar, remplazar, re abrir, crear varias cotizaciones, novedad, seleccionar, emitir boleto, etc... y luego generar GET para validar que se esta generando en las respuestas (especifica de esa solicitud.
 
 
-    ////???? PENDIENTE PROBAR DE NUEVO ENDPOINT GET para documentar finalmente luego de los cambios!!!!!!!!!!!!
+// ???? GET del usuario y get del usuario + id DEBEN ser MUY completas (ademas de permitir paginacion), deben traer toda la información relacionada (usuario, estado actual, cotizaciones, boletos) para que desde el frontend se pueda mostrar toda esa información sin necesidad de hacer consultas adicionales. 
+// ???? otros get más generales pueden traer una versión más resumida de la información, sin el detalle completo de cotizaciones y boletos, para optimizar la consulta cuando se listan varias solicitudes. (luego cada entidad genera su consulta específica para traer su información detallada cuando se necesite).
 
-
-
-
-
-
-// PENDIENTE
-// -- volver a probar endpoint
 // -- validar uso de los campos nuevos de auditoria (created_at, updated_at, closed_at disabled_at)
-
 
 
 //// Archivo original (antes de la edición):
@@ -163,7 +155,7 @@ export class SolicitudController {
                 "ida": "2026-03-10",
                 "vuelta": "2026-03-20"
             },
-            "created_at": "2026-03-20T15:38:22.000Z"
+            "created_at": "2026-03-21T20:00:09.000Z"
         }
     },
     "event": {
@@ -190,20 +182,20 @@ export class SolicitudController {
  ENDPOINT: POST /solicitud/:id/iniciar-revision
             Ejemplo: POST http://localhost:3000/solicitud/7/iniciar-revision
  BODY:
-
+  - NO - 
   RESPUESTA:
-  {
-      "success": true,
-      "message": "Solicitud en revisión",
-      "data": {
-          "solicitud_id": 7,
-          "estado": "EN REVISION",
-          "msn_sistema": "Revisión iniciada por AR (EMP003)"
-      },
-      "event": {
-          "type": "SOLICITUD_EN_REVISION"
-      }
-  }
+    {
+        "success": true,
+        "message": "Solicitud en revisión",
+        "data": {
+            "solicitud_id": 7,
+            "estado": "EN REVISION",
+            "msn_sistema": "Revisión iniciada por AR (EMP003)"
+        },
+        "event": {
+            "type": "SOLICITUD_EN_REVISION"
+        }
+    }
 */
 
   // 3️⃣ Rechazar solicitud (comentario obligatorio)
@@ -306,6 +298,8 @@ export class SolicitudController {
   /*
   DESCRIPCION: Este endpoint es un alias de GET /solicitud, es decir, hace exactamente lo mismo que GET /solicitud sin parámetros. Está pensado para facilitar la consulta de todas las solicitudes sin tener que usar query params. El controlador simplemente llama al método obtenerSolicitudes del servicio sin pasarle ningún parámetro, lo que hará que el servicio use los valores por defecto (página 1, 10 resultados por página, orden descendente).
   ENDPOINT: GET /solicitud/todas
+    Ejemplo: GET http://localhost:3000/solicitud/todas
+    
 */
 
 
@@ -773,6 +767,8 @@ RESPUESTA:
 
 */
 
+
+
   // RUTA DINÁMICA GET /solicitud/:id
   // Por parámetro de ruta → GET /solicitudes/5
   // GET /solicitud/:id
@@ -850,6 +846,17 @@ RESPUESTA:
     }
 }
 */
+
+
+  // Obtener historial de estados de una solicitud por ID
+  // GET /solicitud/:id/historial-estado
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Get(':id/historial-estado')
+  async obtenerHistorialEstadoPorId(@Param('id') id: string) {
+    return this.solicitudService.obtenerHistorialPorSolicitudId(Number(id))
+  }
+
+
 //////////////// ESTE ENDPOINT AUNQUE EXITE NO SE EXPONDRA EN LA DOCUMENTACION PUBLICA /////////////////
 
 

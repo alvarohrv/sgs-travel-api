@@ -34,10 +34,12 @@ model boleto {
   id                      Int                       @id @default(autoincrement()) @db.UnsignedInt
   cotizacion_id           Int                       @db.UnsignedInt
   reemplaza_boleto_id     Int?                      @db.UnsignedInt
+  emitido_usuario_id      Int                       @db.UnsignedInt
   estado_actual_id        Int                       @db.UnsignedInt
   cobertura               String?                   @db.VarChar(20)
   valor_final             Decimal?                  @db.Decimal(14, 2)
   cotizacion              cotizacion                @relation(fields: [cotizacion_id], references: [id], onUpdate: Restrict, map: "fk_boleto_cotizacion")
+  emitido_por_usuario     usuario                   @relation("boletoEmitidoPorUsuario", fields: [emitido_usuario_id], references: [id], onUpdate: Restrict, map: "fk_boleto_usuario")
   estado_boleto           estado_boleto             @relation(fields: [estado_actual_id], references: [id], onUpdate: Restrict, map: "fk_boleto_estado")
   created_at              DateTime                  @default(now()) @db.Timestamp(0)
   updated_at              DateTime?                 @updatedAt @db.Timestamp(0)   // NULL al crear; se llena automáticamente en cada .update() (solo refleja cambio de estado)
@@ -48,6 +50,7 @@ model boleto {
   segmento_boleto         segmento_boleto[]
 
   @@index([estado_actual_id], map: "fk_boleto_estado")
+  @@index([emitido_usuario_id], map: "idx_boleto_usuario")
   @@index([reemplaza_boleto_id], map: "fk_boleto_reemplaza")
   @@index([cotizacion_id], map: "idx_boleto_cotizacion")
 }
@@ -55,6 +58,7 @@ model boleto {
 model cotizacion {
   id                          Int                           @id @default(autoincrement()) @db.UnsignedInt
   solicitud_id                Int                           @db.UnsignedInt
+  cargada_usuario_id          Int                           @db.UnsignedInt
   cotizacion_anterior_id      Int?                          @db.UnsignedInt
   estado_actual_id            Int                           @db.UnsignedInt
   cobertura                   String?                       @db.VarChar(30)
@@ -65,11 +69,13 @@ model cotizacion {
   boleto                      boleto[]
   cotizacion                  cotizacion?                   @relation("cotizacionTocotizacion", fields: [cotizacion_anterior_id], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "fk_cotizacion_anterior")
   other_cotizacion            cotizacion[]                  @relation("cotizacionTocotizacion")
+  cargada_por_usuario         usuario                       @relation("cotizacionCargadaPorUsuario", fields: [cargada_usuario_id], references: [id], onUpdate: Restrict, map: "fk_cotizacion_usuario")
   estado_cotizacion           estado_cotizacion             @relation(fields: [estado_actual_id], references: [id], onUpdate: Restrict, map: "fk_cotizacion_estado")
   solicitud                   solicitud                     @relation(fields: [solicitud_id], references: [id], onUpdate: Restrict, map: "fk_cotizacion_solicitud")
   historial_estado_cotizacion historial_estado_cotizacion[]
   segmento_cotizacion         segmento_cotizacion[]
 
+  @@index([cargada_usuario_id], map: "idx_cotizacion_usuario")
   @@index([cotizacion_anterior_id], map: "fk_cotizacion_anterior")
   @@index([estado_actual_id], map: "fk_cotizacion_estado")
   @@index([solicitud_id], map: "idx_cotizacion_solicitud")
@@ -99,8 +105,6 @@ model estado_solicitud {
   id                         Int                          @id @default(autoincrement()) @db.UnsignedInt
   estado                     String                       @db.VarChar(100)
   slug                       String                       @unique(map: "slug") @db.VarChar(100)
-  color_hexa_main            String?                      @db.VarChar(10)
-  color_hexa_sec             String?                      @db.VarChar(10)
   editable                   Boolean?                     @default(true)
   created_at                 DateTime                      @default(now()) @db.Timestamp(0)
   historial_estado_solicitud historial_estado_solicitud[]
@@ -190,6 +194,8 @@ model usuario {
   historial_estado_boleto     historial_estado_boleto[]
   historial_estado_cotizacion historial_estado_cotizacion[]
   historial_estado_solicitud  historial_estado_solicitud[]
+  boletos_emitidos            boleto[]                      @relation("boletoEmitidoPorUsuario")
+  cotizaciones_cargadas       cotizacion[]                  @relation("cotizacionCargadaPorUsuario")
   solicitud                   solicitud[]
 }
 
