@@ -15,9 +15,16 @@ import { DemoPolicy } from '../../auth/decorators/demo-policy.decorator'
 import { DemoPolicyGuard } from '../../auth/guards/demo-policy.guard'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../../auth/guards/roles.guard'
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
+import { Throttle, SkipThrottle} from '@nestjs/throttler'
 
-
-@Controller()
+@ApiTags('boleto')
+@ApiBearerAuth()
+@SkipThrottle({ 'restrictive': true, 'health': true })
+@Throttle({ 'normal-human': { ttl: 60000, limit: 30 } })   
+@Controller({
+  version: '1'
+})
 export class BoletoController {
   constructor(private readonly boletoService: BoletoService) {}
 
@@ -40,7 +47,7 @@ export class BoletoController {
   /*
   DESCRIPCIÓN: Admin emite un boleto a partir de una cotización aprobada. El boleto queda en estado "EMITIDO". Si se proporciona un reemplaza_boleto_id, el nuevo boleto reemplaza al anterior y este último queda anulado. La solicitud asociada a la cotización pasa a estado "BOLETO EMITIDO".
   ENDPOINT POST /cotizacion/:cotizacionId/boleto
-              Ej: POST http://localhost:3000/cotizacion/7/boleto
+              Ej: POST http://localhost:3000/api/v1/cotizacion/7/boleto
   BODY   
     {
         "reemplaza_boleto_id": null,
@@ -174,8 +181,8 @@ export class BoletoController {
   DESCRIPCIÓN: El Solicitante puede generar una novedad relacionada con un boleto específico.
 
   ENDPOINT POST /boleto/:id/novedad
-          Ej: http://localhost:3000/boleto/2/novedad
-          Ej: http://localhost:3000/boleto/1/novedad
+          Ej: http://localhost:3000/api/v1/boleto/2/novedad
+          Ej: http://localhost:3000/api/v1/boleto/1/novedad
 
   BODY
   {
@@ -223,7 +230,7 @@ export class BoletoController {
 /*
   DESCRIPCIÓN: Admin reemplaza un boleto ya emitido por uno nuevo. El boleto anterior queda anulado y el nuevo boleto queda en estado "EMITIDO". La solicitud asociada a la cotización del boleto reemplazado permanece en estado "BOLETO EMITIDO".
   ENDPOINT POST /boleto/:boletoId/reemplazar
-              Ej: POST http://localhost:3000/boleto/2/reemplazar
+              Ej: POST http://localhost:3000/api/v1/boleto/2/reemplazar
 
     // La entidad Boleto en caso de correcciones (parcial o total) generara un nuevo boleto que reemplaza al anterior, quedando este último anulado. Esto se hace para mantener un historial claro de los cambios realizados en los boletos y para asegurar la trazabilidad de las modificaciones. Al crear un nuevo boleto en lugar de modificar el existente, se puede conservar un registro completo de las versiones anteriores del boleto, lo que es importante para auditorías y para entender el historial de cambios en caso de futuras consultas o disputas.
 
@@ -353,7 +360,7 @@ RESPUESTA
   DESCRIPCIÓN: El Admin puede conservar un boleto que se encuentra en estado "NOVEDAD" cuando la novedad no afecta la validez del boleto y no requiere emitir un nuevo boleto. El boleto conserva su estado "EMITIDO" y la solicitud asociada permanece en estado "BOLETO EMITIDO".
 
   ENDPOINT POST /boleto/:id/conservar
-          Ej: http://localhost:3000/boleto/1/conservar
+          Ej: http://localhost:3000/api/v1/boleto/1/conservar
   BODY
   {
   "comentario": "La novedad reportada no afecta la validez del boleto, se conserva el boleto emitido."
@@ -401,7 +408,7 @@ RESPUESTA
   DESCRIPCIÓN: El solicitante confirma finalmente estar conforme con  
 
   ENDPOINT  POST /boleto/:id/confirmar
-            Ej:  http://localhost:3000/boleto/3/confirmar
+            Ej:  http://localhost:3000/api/v1/boleto/3/confirmar
   BODY
   {
      "comentario": "Confirmo que el boleto es correcto y estoy conforme con la solución propuesta."
@@ -441,7 +448,7 @@ RESPUESTA
 
 
     /*
-    URL de ejemplo: http://localhost:3000/boleto/3
+    URL de ejemplo: http://localhost:3000/api/v1/boleto/3
 
     RESPUESTA:
     {
@@ -519,7 +526,7 @@ RESPUESTA
     /*
     DESCRIPCIÓN: Obtener el historial de estados de un boleto específico por su ID. Esto incluye todos los cambios de estado que ha tenido el boleto a lo largo del tiempo, junto con las fechas y los usuarios que realizaron cada cambio.
     ENDPOINT: GET /boleto/:id/historial-estado
-              Ej: http://localhost:3000/boleto/3/historial-estado
+              Ej: http://localhost:3000/api/v1/boleto/3/historial-estado
     RESPUESTA:
     {
         "success": true,

@@ -6,8 +6,17 @@ import { CrearUsuarioDto } from './dto/crear-usuario.dto'
 import { Roles } from '../../auth/decorators/roles.decorator'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../../auth/guards/roles.guard'
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
+import { Throttle, SkipThrottle } from '@nestjs/throttler'
 
-@Controller('usuario')
+@ApiTags('usuario')
+@ApiBearerAuth()
+@SkipThrottle({ 'restrictive': true, 'health': true })
+@Throttle({ 'normal-human': { ttl: 60000, limit: 30 } }) 
+@Controller({
+  path: 'usuario',
+  version: '1' 
+})
 export class UsuarioController {
   constructor(private readonly usuarioService: UsuarioService) {}
 
@@ -21,7 +30,7 @@ export class UsuarioController {
   @Pos
   DESCRIPCIÓN: Endpoint para crear un nuevo usuario.
   ENDPOINT: POST /usuario
-              Ej:  POST http://localhost:3000/usuario
+              Ej:  POST http://localhost:3000/api/v1/usuario
   BODY   
   {
     "numero_documento": "123456789",
@@ -64,7 +73,7 @@ export class UsuarioController {
 /*
   DESCRIPCIÓN: Endpoint para cambiar el rol de un usuario.
   ENDPOINT: PATCH /usuario/:id/rol
-              Ej:  PATCH http://localhost:3000/usuario/3/rol
+              Ej:  PATCH http://localhost:3000/api/v1/usuario/3/rol
   BODY
   {
     "rol": "ADMIN"

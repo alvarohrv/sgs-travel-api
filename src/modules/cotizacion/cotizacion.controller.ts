@@ -71,8 +71,16 @@ import { ReemplazarCotizacionDto } from './dto/reemplazar-cotizacion.dto'
 import { RechazarCotizacionDto } from './dto/rechazar-cotizacion.dto'
 import { SeleccionarCotizacionDto } from './dto/seleccionar-cotizacion.dto'
 import { NovedadCotizacionDto } from './dto/novedad-cotizacion.dto'
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
+import { Throttle, SkipThrottle } from '@nestjs/throttler'
 
-@Controller()
+@ApiTags('cotizacion')
+@ApiBearerAuth()
+@SkipThrottle({ 'restrictive': true, 'health': true })
+@Throttle({ 'normal-human': { ttl: 60000, limit: 30 } }) 
+@Controller({
+  version: '1'
+})
 export class CotizacionController {
   constructor(private readonly cotizacionService: CotizacionService) {}
 
@@ -100,7 +108,7 @@ export class CotizacionController {
   Nota: La cotizacion es flexible en cuanto a su detalle en cuanto a fechas, vuelos, cobertura, etc Sera el admin quien puede 
 
   ENDPOINT: POST /solicitud/:solicitudId/cotizacion
-              Ej: POST http://localhost:3000/solicitud/2/cotizacion
+              Ej: POST http://localhost:3000/api/v1/solicitud/2/cotizacion
   BODY (nueva cotización):
   {
     "cotizacion_anterior_id": null,
@@ -216,7 +224,7 @@ export class CotizacionController {
   /*
   DESCRIPCIÓN: Empleado genera una novedad en la cotización específica, proporcionando un comentario obligatorio. La cotización pasa a estado "COTIZACION RECHAZADA" y la solicitud vuelve a estado "EN REVISION" para que el admin pueda corregir o cargar una nueva cotización.
   ENDPOINT: POST /cotizacion/:id/novedad
-            Ej: POST http://localhost:3000/cotizacion/5/novedad
+            Ej: POST http://localhost:3000/api/v1/cotizacion/5/novedad
   BODY:
   {
     "comentario": "El vuelo de ida no podra ser ese dia, ubicar el vuelo mas proximo porfavor" 
@@ -284,7 +292,7 @@ export class CotizacionController {
   La cotización anterior queda anulada y la nueva cotización toma su lugar. La solicitud permanece en estado "COTIZACION CARGADA" y queda pendiente de revisión por parte del empleado.
 
   ENDPOINT: POST /solicitud/:solicitudId/cotizacion/:cotizacionId/reemplazar
-              Ej: http://localhost:3000/solicitud/2/cotizacion/5/reemplazar
+              Ej: http://localhost:3000/api/v1/solicitud/2/cotizacion/5/reemplazar
 
 BODY (nueva cotización):
   {
@@ -385,7 +393,7 @@ BODY (nueva cotización):
   /*
   DESCRIPCIÓN: Empleado rechaza una cotización específica, proporcionando un comentario obligatorio. La cotización pasa a estado "COTIZACION RECHAZADA" y la solicitud vuelve a estado "EN REVISION" para que el admin pueda corregir o cargar una nueva cotización.
   ENDPOINT: POST /cotizacion/:id/rechazar
-            Ej: POST http://localhost:3000/cotizacion/7/rechazar
+            Ej: POST http://localhost:3000/api/v1/cotizacion/7/rechazar
   BODY:
   {
     "comentario": "El vuelo de regreso es muy tarde, necesito una opción con vuelo de vuelta más temprano." 
@@ -430,7 +438,7 @@ BODY (nueva cotización):
 
   /*
     DESCRIPCIÓN
-    ENDPOINT http://localhost:3000/cotizacion/7/conservar
+    ENDPOINT http://localhost:3000/api/v1/cotizacion/7/conservar
     BODY
     {
       "comentario": "No hay vuelos mas tempranos por mal clima, se mantiene vigente el vuelo actual o seleccionar la otra cotización cargada."
@@ -477,7 +485,7 @@ BODY (nueva cotización):
   /*
   DESCRIPCIÓN: El empleado selecciona en una sola acción la cotización primaria y opcionalmente una secundaria para una solicitud. Las cotizaciones elegidas cambian a "OPCION PRIMARIA" y "OPCION SECUNDARIA", cualquier otra cotización de esa misma solicitud pasa a "COTIZACION DESCARTADA" y la solicitud vuelve a "EN REVISION".
   ENDPOINT: POST /solicitud/:solicitudId/seleccionar-cotizacion
-            Ej: http://localhost:3000/solicitud/2/seleccionar-cotizacion
+            Ej: http://localhost:3000/api/v1/solicitud/2/seleccionar-cotizacion
             nota: no se eligio pasar la info de las preferencias por medio de query params porque por lo general se usan para filtros o paginación, no para decisiones de negocio cuya acción afecta varias entidades (solicitud y varias cotizaciones).
 
   BODY:
@@ -539,7 +547,7 @@ BODY (nueva cotización):
     return this.cotizacionService.obtenerPorSolicitud(Number(solicitudId))
   }
   /*
-  URL de ejemplo: http://localhost:3000/solicitud/3/cotizacion
+  URL de ejemplo: http://localhost:3000/api/v1/solicitud/3/cotizacion
 
   RESPUESTA:
 {
@@ -587,7 +595,7 @@ BODY (nueva cotización):
 
 
 /*
-URL de ejemplo: http://localhost:3000/cotizacion/7
+URL de ejemplo: http://localhost:3000/api/v1/cotizacion/7
 {
     "success": true,
     "message": "Cotización obtenida correctamente",
@@ -769,7 +777,7 @@ URL de ejemplo: http://localhost:3000/cotizacion/7
   /*
   DESCRIPCIÓN: Obtener el historial completo de estados por los que ha pasado una cotización específica, incluyendo fechas y comentarios asociados a cada cambio de estado. Esto permite tener un seguimiento detallado de la evolución de la cotización a lo largo del tiempo.
   ENDPOINT: GET /cotizacion/:id/historial-estado
-            Ej: http://localhost:3000/cotizacion/7/historial-estado
+            Ej: http://localhost:3000/api/v1/cotizacion/7/historial-estado
     RESPUESTA:
     {
         "success": true,

@@ -1,14 +1,6 @@
+//////// http://localhost:3000/docs
 
-
-  ////???? PENDIENTE PROBAR ENDPOINT DE CIERRE Y GENERAR UN ENDPOINT DE REAPERTURA (solo SUPERADMIN) PARA DESMARCAR closed_at Y VOLVER A ABRIR LA SOLICITUD.
-
-
-
-  /////????? PENDIENTE en la solictud '8' rechazar, remplazar, re abrir, crear varias cotizaciones, novedad, seleccionar, emitir boleto, etc... y luego generar GET para validar que se esta generando en las respuestas (especifica de esa solicitud.
-
-
-// ???? GET del usuario y get del usuario + id DEBEN ser MUY completas (ademas de permitir paginacion), deben traer toda la información relacionada (usuario, estado actual, cotizaciones, boletos) para que desde el frontend se pueda mostrar toda esa información sin necesidad de hacer consultas adicionales. 
-// ???? otros get más generales pueden traer una versión más resumida de la información, sin el detalle completo de cotizaciones y boletos, para optimizar la consulta cuando se listan varias solicitudes. (luego cada entidad genera su consulta específica para traer su información detallada cuando se necesite).
+////???? PENDIENTE PROBAR ENDPOINT DE CIERRE Y GENERAR UN ENDPOINT DE REAPERTURA (solo SUPERADMIN) PARA DESMARCAR closed_at Y VOLVER A ABRIR LA SOLICITUD.
 
 // -- validar uso de los campos nuevos de auditoria (created_at, updated_at, closed_at disabled_at)
 
@@ -86,9 +78,21 @@ import { EliminarSolicitudDto } from './dto/eliminar-solicitud.dto'
 import { EliminarSolicitudesUsuarioDto } from './dto/eliminar-solicitudes-usuario.dto'
 import { EliminarTodasSolicitudesDto } from './dto/eliminar-todas-solicitudes.dto'
 import { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto'
+import { ApiTags, ApiBearerAuth, ApiExcludeEndpoint, ApiExtension, ApiOperation, ApiQuery } from '@nestjs/swagger'
 //import { audit } from 'rxjs'
+import { Throttle, SkipThrottle } from '@nestjs/throttler'
 
-@Controller('solicitud') 
+
+//@Controller('solicitud') 
+@ApiTags('solicitud')
+@ApiBearerAuth()
+@SkipThrottle({ 'restrictive': true, 'health': true })
+@Throttle({ 'normal-human': { ttl: 60000, limit: 30 } }) 
+//@Throttle({ 'normal-human': {} }) // 🛡️ TODOS los endpoints usaran la estrategia 'normal-human'
+@Controller({
+  path: 'solicitud',
+  version: '1'  // Especificar que es V1
+})
 export class SolicitudController {
 
   //  inyección de dependencias desde el constructor <3
@@ -108,7 +112,10 @@ export class SolicitudController {
 
   // 1️⃣ Crear solicitud (Empleado)
   // POST /solicitud
+    
   @Post()
+    @ApiOperation({ summary: 'Crear solicitud' })
+    @ApiExtension('x-order', 6)
   @Roles('SUPERADMIN', 'ADMIN', 'SOLICITANTE', 'DEMO')
   @UseGuards(JwtAuthGuard, RolesGuard, DemoPolicyGuard)
   @DemoPolicy({ resource: 'solicitud', action: 'create' })
@@ -121,7 +128,7 @@ export class SolicitudController {
   /*
   DESCRIPCION: Para crear una solicitud, el cliente envía un POST a /solicitud con un JSON que tiene el tipo de vuelo, la ruta (origen y destino) y las fechas. El controlador recibe esa información en el parámetro 'data' gracias al decorador @Body(). Luego, llama al método crearSolicitud del servicio, pasando esos datos junto con un usuarioId (que por ahora es fijo pero luego vendrá del token JWT). El servicio se encarga de toda la lógica para crear la solicitud en la base de datos y devuelve una respuesta estándar que el controlador retorna al cliente.
   ENDPOINT: POST /solicitud
-            Ejemplo: POST http://localhost:3000/solicitud
+            Ejemplo: POST http://localhost:3000/api/v1/solicitud
   BODY:
     {
       "tipo_de_vuelo": "IDA_Y_VUELTA",
@@ -167,6 +174,8 @@ export class SolicitudController {
   // 2️⃣ Admin abre solicitud para revisión
   // POST /solicitud/:id/iniciar-revision
   @Post(':id/iniciar-revision')
+    @ApiOperation({ summary: 'Iniciar revisión de solicitud por parte de un administrador' })
+    @ApiExtension('x-order', 7)
   @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
   @UseGuards(JwtAuthGuard, RolesGuard)
   async iniciarRevision(
@@ -180,7 +189,7 @@ export class SolicitudController {
    /*
  DESCRIPCION: Cuando un administrador quiere iniciar la revisión de una solicitud, envía un POST a /solicitud/:id/iniciar-revision, donde :id es el ID de la solicitud que quiere revisar. El controlador captura ese ID a través del decorador @Param('id') y también puede recibir un cuerpo opcional con una observación. Luego, llama al método iniciarRevision del servicio, pasando el ID de la solicitud, el usuarioId del admin (que por ahora es fijo) y la observación. El servicio se encarga de cambiar el estado de la solicitud a EN_REVISION y registrar el evento correspondiente.
  ENDPOINT: POST /solicitud/:id/iniciar-revision
-            Ejemplo: POST http://localhost:3000/solicitud/7/iniciar-revision
+            Ejemplo: POST http://localhost:3000/api/v1/solicitud/7/iniciar-revision
  BODY:
   - NO - 
   RESPUESTA:
@@ -201,6 +210,8 @@ export class SolicitudController {
   // 3️⃣ Rechazar solicitud (comentario obligatorio)
   // POST /solicitud/:id/rechazar
   @Post(':id/rechazar')
+    @ApiOperation({ summary: 'Rechazar solicitud por parte de un administrador' })
+    @ApiExtension('x-order', 8)
   @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
   @UseGuards(JwtAuthGuard, RolesGuard)
 
@@ -217,7 +228,7 @@ export class SolicitudController {
   /*
   DESCRIPCION: Cuando se rechaza una solicitud, el cliente envía un POST a /solicitud/:id/rechazar con un comentario obligatorio que explica el motivo del rechazo. El controlador captura el ID de la solicitud a través del parámetro de ruta y el comentario a través del cuerpo de la petición. Luego, llama al método rechazarSolicitud del servicio, que se encarga de cambiar el estado de la solicitud a RECHAZADA, registrar el comentario y disparar el evento correspondiente.
   ENDPOINT: POST /solicitud/:id/rechazar
-            Ejemplo: POST http://localhost:3000/solicitud/1/rechazar
+            Ejemplo: POST http://localhost:3000/api/v1/solicitud/1/rechazar
   BODY:
     {
       "comentario": "Solicitud no cumple con los requisitos mínimos para ser procesada. Por favor revise la información y genera una nueva solicitud." 
@@ -252,7 +263,14 @@ export class SolicitudController {
 
   // GET /solicitud/mis-solicitudes
   // Reutiliza el mismo servicio de listado, pero fuerza el filtro por usuario autenticado.
+    
   @Get('mis-solicitudes')
+  @ApiOperation({ summary: 'Permite Listar las solicitudes creadas por el usuario' })
+  @ApiExtension('x-order', 1)
+  @ApiQuery({ name: 'estado', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiQuery({ name: 'orden', required: false, enum: ['asc', 'desc'] })
   @UseGuards(JwtAuthGuard)
   async obtenerMisSolicitudes(
     @Request() req: any,
@@ -277,7 +295,7 @@ export class SolicitudController {
   /*
   DESCRIPCION: Este endpoint permite a un usuario autenticado obtener solo sus propias solicitudes. El controlador está protegido por JwtAuthGuard, lo que significa que el usuario debe enviar un token JWT válido en la cabecera de la petición. El controlador extrae el ID del usuario del token (req.user.id) y luego llama al método obtenerSolicitudes del servicio, pasando ese ID como filtro para que solo se devuelvan las solicitudes creadas por ese usuario. También soporta los mismos query params de paginación y filtrado por estado que el endpoint general de listado de solicitudes.
   ENDPOINT: GET /solicitud/mis-solicitudes
-  Ejemplo: GET http://localhost:3000/solicitud/mis-solicitudes?estado=pendiente&page=1&limit=5
+  Ejemplo: GET http://localhost:3000/api/v1/solicitud/mis-solicitudes?estado=pendiente&page=1&limit=5
   BODY: No requiere body, pero sí debe incluir un token JWT válido en la cabecera Authorization
   RESPUESTA:
   {
@@ -287,7 +305,9 @@ export class SolicitudController {
 
 
   // GET /solicitud/todas
+    
   @Get('todas')
+  @ApiExcludeEndpoint() // Este endpoint no aparecerá en la documentación
   @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
   @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerTodas() {
@@ -298,7 +318,7 @@ export class SolicitudController {
   /*
   DESCRIPCION: Este endpoint es un alias de GET /solicitud, es decir, hace exactamente lo mismo que GET /solicitud sin parámetros. Está pensado para facilitar la consulta de todas las solicitudes sin tener que usar query params. El controlador simplemente llama al método obtenerSolicitudes del servicio sin pasarle ningún parámetro, lo que hará que el servicio use los valores por defecto (página 1, 10 resultados por página, orden descendente).
   ENDPOINT: GET /solicitud/todas
-    Ejemplo: GET http://localhost:3000/solicitud/todas
+    Ejemplo: GET http://localhost:3000/api/v1/solicitud/todas
     
 */
 
@@ -314,7 +334,7 @@ export class SolicitudController {
   //   ?orden=asc      → más antiguas primero (default: 'desc' = más recientes primero)
   //
   // Ejemplos:
-  //   GET http://localhost:3000/solicitud      → página 1, 10 por página, más recientes primero
+  //   GET http://localhost:3000/api/v1/solicitud      → página 1, 10 por página, más recientes primero
   //   GET /solicitud?page=2&limit=5       → página 2, 5 por página
   //   GET /solicitud?page=1&limit=3&orden=asc → 3 por página, más antiguas primero
   //   GET /solicitud?estado=pendiente      → filtra por estado pendiente
@@ -325,7 +345,16 @@ export class SolicitudController {
   // GET /solicitud?usuario_id=3&estado=aprobada&page=1&limit=5
   //Cuidado:
   //   GET /solicitud?id=5&estado=pendiente → busca la solicitud con ID 5, el filtro de estado se ignora porque el ID tiene prioridad
+    
   @Get()
+  @ApiOperation({ summary: 'Listar solicitudes con filtros' })
+  @ApiExtension('x-order', 3)
+  @ApiQuery({ name: 'id', required: false, type: String })
+  @ApiQuery({ name: 'estado', required: false, type: String })
+  @ApiQuery({ name: 'usuario_id', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiQuery({ name: 'orden', required: false, enum: ['asc', 'desc'] })
   @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
   @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerSolicitudes(
@@ -359,21 +388,21 @@ export class SolicitudController {
 /*
 DESCRIPCION: Este endpoint es el más flexible para consultar solicitudes, ya que soporta múltiples query params para filtrar, paginar y ordenar los resultados. El controlador primero verifica si se recibió un query param 'id' (para una solicitud en particular), en cuyo caso llama al servicio para buscar esa solicitud específica por ID (ignorando cualquier otro filtro o paginación). Si no se recibió un 'id', entonces procesa los demás query params: convierte 'page' y 'limit' a números, valida el formato de 'orden' y convierte 'usuario_id' a número si se proporcionó. Luego, llama al método obtenerSolicitudes del servicio pasando todos esos parámetros para obtener una lista de solicitudes que cumplan con los criterios especificados.
 
-GET http://localhost:3000/solicitud?id=7
+GET http://localhost:3000/api/v1/solicitud?id=2
 RESPUESTA:
 {
     "success": true,
     "message": "Solicitud obtenida correctamente",
     "data": {
         "solicitud": {
-            "id": 1,
-            "radicado": "RAD-2026-010",
+            "id": 2,
+            "radicado": "RAD-2026-020",
             "usuario_id": 1,
-            "estado_actual_id": 1,
-            "tipo_de_vuelo": "IDA",
-            "created_at": "2026-03-17T14:02:42.000Z",
-            "updated_at": null,
-            "closed_at": null,
+            "estado_actual_id": 7,
+            "tipo_de_vuelo": "IDA_Y_VUELTA",
+            "created_at": "2026-03-21T23:34:38.000Z",
+            "updated_at": "2026-03-22T05:11:17.000Z",
+            "closed_at": "2026-03-22T05:11:17.000Z",
             "usuario": {
                 "id": 1,
                 "nombre": "Carlos",
@@ -381,21 +410,276 @@ RESPUESTA:
                 "numero_documento": "87654321"
             },
             "estado_solicitud": {
-                "id": 1,
-                "estado": "PENDIENTE",
-                "slug": "pendiente",
-                "color_hexa_main": "#6c757d",
-                "color_hexa_sec": "#adb5bd",
+                "id": 7,
+                "estado": "VIAJE PROGRAMADO",
+                "slug": "viaje_programado",
                 "editable": true,
-                "created_at": "2026-03-17T13:54:07.000Z"
+                "created_at": "2026-03-21T23:34:07.000Z"
             },
-            "cotizacion": [],
-            "historial_estado_solicitud": []
+            "ruta": {
+                "origen": "Bogota",
+                "destino": "Cartagena",
+                "preferencia_aerolinea": "Wingo"
+            },
+            "fechas": {
+                "ida": "2026-05-02",
+                "vuelta": "2026-05-15"
+            },
+            "cotizacion": [
+                {
+                    "id": 5,
+                    "solicitud_id": 2,
+                    "cotizacion_anterior_id": null,
+                    "usuario_solicitante": {
+                        "id": 1,
+                        "nombre": "Carlos"
+                    },
+                    "usuario_emite_boleto": null,
+                    "estado_actual_id": 8,
+                    "cobertura": "IDA_Y_VUELTA",
+                    "valor_total": "850000",
+                    "created_at": "2026-03-22T04:58:51.000Z",
+                    "updated_at": "2026-03-22T05:00:22.000Z",
+                    "closed_at": null,
+                    "estado_cotizacion": {
+                        "id": 8,
+                        "estado": "COTIZACION ANULADA",
+                        "slug": "cotizacion_anulada",
+                        "editable": false,
+                        "created_at": "2026-03-21T23:34:07.000Z"
+                    },
+                    "ruta": {
+                        "origen": "Bogota",
+                        "destino": "Cartagena"
+                    },
+                    "detalle": {
+                        "ida": {
+                            "aerolinea": "Wingo",
+                            "fecha": "2026-02-02",
+                            "vuelo": "WA123",
+                            "clase_tarifaria": "ECONOMICA",
+                            "politica_equipaje": null
+                        },
+                        "vuelta": {
+                            "aerolinea": "Wingo",
+                            "fecha": "2026-03-15",
+                            "vuelo": "WA456",
+                            "clase_tarifaria": null,
+                            "politica_equipaje": null
+                        }
+                    },
+                    "boleto": []
+                },
+                {
+                    "id": 6,
+                    "solicitud_id": 2,
+                    "cotizacion_anterior_id": null,
+                    "usuario_solicitante": {
+                        "id": 1,
+                        "nombre": "Carlos"
+                    },
+                    "usuario_emite_boleto": null,
+                    "estado_actual_id": 8,
+                    "cobertura": "IDA_Y_VUELTA",
+                    "valor_total": "750000",
+                    "created_at": "2026-03-22T04:59:22.000Z",
+                    "updated_at": "2026-03-22T05:06:36.000Z",
+                    "closed_at": null,
+                    "estado_cotizacion": {
+                        "id": 8,
+                        "estado": "COTIZACION ANULADA",
+                        "slug": "cotizacion_anulada",
+                        "editable": false,
+                        "created_at": "2026-03-21T23:34:07.000Z"
+                    },
+                    "ruta": {
+                        "origen": "Bogota",
+                        "destino": "Cartagena"
+                    },
+                    "detalle": {
+                        "ida": {
+                            "aerolinea": "LATAM",
+                            "fecha": "2026-02-02",
+                            "vuelo": "LA148",
+                            "clase_tarifaria": "ECONOMICA",
+                            "politica_equipaje": null
+                        },
+                        "vuelta": {
+                            "aerolinea": "Wingo",
+                            "fecha": "2026-03-16",
+                            "vuelo": "WA755",
+                            "clase_tarifaria": null,
+                            "politica_equipaje": null
+                        }
+                    },
+                    "boleto": []
+                },
+                {
+                    "id": 7,
+                    "solicitud_id": 2,
+                    "cotizacion_anterior_id": 5,
+                    "usuario_solicitante": {
+                        "id": 1,
+                        "nombre": "Carlos"
+                    },
+                    "usuario_emite_boleto": {
+                        "id": 3,
+                        "nombre": "ar"
+                    },
+                    "estado_actual_id": 7,
+                    "cobertura": "IDA_Y_VUELTA",
+                    "valor_total": "860000",
+                    "created_at": "2026-03-22T05:00:22.000Z",
+                    "updated_at": "2026-03-22T05:06:36.000Z",
+                    "closed_at": null,
+                    "estado_cotizacion": {
+                        "id": 7,
+                        "estado": "COTIZACION SELECCIONADA",
+                        "slug": "cotizacion_seleccionada",
+                        "editable": false,
+                        "created_at": "2026-03-21T23:34:07.000Z"
+                    },
+                    "ruta": {
+                        "origen": "Bogota",
+                        "destino": "Cartagena"
+                    },
+                    "detalle": {
+                        "ida": {
+                            "aerolinea": "LATAM",
+                            "fecha": "2026-02-03",
+                            "vuelo": "LA129",
+                            "clase_tarifaria": "ECONOMICA",
+                            "politica_equipaje": "1 maleta de 23kg incluida"
+                        },
+                        "vuelta": {
+                            "aerolinea": "Wingo",
+                            "fecha": "2026-03-15",
+                            "vuelo": "WA456",
+                            "clase_tarifaria": "ECONOMICA",
+                            "politica_equipaje": null
+                        }
+                    },
+                    "boleto": [
+                        {
+                            "id": 2,
+                            "cotizacion_id": 7,
+                            "solicitud_id": 2,
+                            "reemplaza_boleto_id": null,
+                            "usuario_solicitante": {
+                                "id": 1,
+                                "nombre": "Carlos"
+                            },
+                            "usuario_generador_boleto": {
+                                "id": 3,
+                                "nombre": "ar"
+                            },
+                            "estado_boleto": {
+                                "id": 3,
+                                "estado": "BOLETO ANULADO",
+                                "slug": "boleto_anulado",
+                                "editable": false,
+                                "created_at": "2026-03-21T23:34:07.000Z"
+                            },
+                            "cobertura": "IDA_Y_VUELTA",
+                            "valor_final": "760000",
+                            "created_at": "2026-03-22T05:06:36.000Z",
+                            "ruta": {
+                                "origen": "Bogota",
+                                "destino": "Cartagena"
+                            },
+                            "segmentos": [
+                                {
+                                    "tipo_segmento": "IDA",
+                                    "aerolinea": "LATAM",
+                                    "codigo_reserva": "ZXCV12",
+                                    "numero_tiquete": "987654321",
+                                    "numero_vuelo": "LA148",
+                                    "fecha_vuelo": "2026-02-02",
+                                    "fecha_compra": "2026-02-01",
+                                    "clase_tarifaria": "Económica",
+                                    "politica_equipaje": "1 maleta 23kg",
+                                    "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf",
+                                    "estado": "CONFIRMADO"
+                                },
+                                {
+                                    "tipo_segmento": "VUELTA",
+                                    "aerolinea": "Wingo",
+                                    "codigo_reserva": "ZXCV12",
+                                    "numero_tiquete": "987654321",
+                                    "numero_vuelo": "WA755",
+                                    "fecha_vuelo": "2026-03-16",
+                                    "fecha_compra": "2026-02-01",
+                                    "clase_tarifaria": "Económica",
+                                    "politica_equipaje": "1 maleta 23kg",
+                                    "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf",
+                                    "estado": "CONFIRMADO"
+                                }
+                            ]
+                        },
+                        {
+                            "id": 3,
+                            "cotizacion_id": 7,
+                            "solicitud_id": 2,
+                            "reemplaza_boleto_id": 2,
+                            "usuario_solicitante": {
+                                "id": 1,
+                                "nombre": "Carlos"
+                            },
+                            "usuario_generador_boleto": {
+                                "id": 3,
+                                "nombre": "ar"
+                            },
+                            "estado_boleto": {
+                                "id": 2,
+                                "estado": "CONFORME POR EL EMPLEADO",
+                                "slug": "conforme_empleado",
+                                "editable": false,
+                                "created_at": "2026-03-21T23:34:07.000Z"
+                            },
+                            "cobertura": "IDA_Y_VUELTA",
+                            "valor_final": "840000",
+                            "created_at": "2026-03-22T05:07:25.000Z",
+                            "ruta": {
+                                "origen": "Bogota",
+                                "destino": "Cartagena"
+                            },
+                            "segmentos": [
+                                {
+                                    "tipo_segmento": "IDA",
+                                    "aerolinea": "LATAM",
+                                    "codigo_reserva": "ZXCV12",
+                                    "numero_tiquete": "987654321",
+                                    "numero_vuelo": "LA148",
+                                    "fecha_vuelo": "2026-02-02",
+                                    "fecha_compra": "2026-02-01",
+                                    "clase_tarifaria": "Económica",
+                                    "politica_equipaje": "1 maleta 23kg",
+                                    "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf",
+                                    "estado": "REPROGRAMADO"
+                                },
+                                {
+                                    "tipo_segmento": "VUELTA",
+                                    "aerolinea": "Wingo",
+                                    "codigo_reserva": "ZXCV12",
+                                    "numero_tiquete": "5252525252",
+                                    "numero_vuelo": "WA577",
+                                    "fecha_vuelo": "2026-03-23",
+                                    "fecha_compra": "2026-02-01",
+                                    "clase_tarifaria": "Económica",
+                                    "politica_equipaje": "1 maleta 23kg",
+                                    "url_archivo_adjunto": "https://dominio.com/boleto/4552.pdf",
+                                    "estado": "REPROGRAMADO"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
         }
     }
 }
 
-GET http://localhost:3000/solicitud?usuario_id=1
+GET http://localhost:3000/api/v1/solicitud?usuario_id=1
 RESPUESTA:
 {
     "success": true,
@@ -470,7 +754,7 @@ RESPUESTA:
     }
 }
 
-GET http://localhost:3000/solicitud?usuario_id=1?page=1&limit=2&orden=asc
+GET http://localhost:3000/api/v1/solicitud?usuario_id=1?page=1&limit=2&orden=asc
 (mas antiguas primero)
 RESPUESTA:
 {
@@ -479,38 +763,294 @@ RESPUESTA:
     "data": {
         "solicitudes": [
             {
-                "id": 1,
-                "radicado": "RAD-2026-010",
+                "id": 2,
+                "radicado": "RAD-2026-020",
                 "usuario_id": 1,
-                "estado_actual_id": 1,
-                "tipo_de_vuelo": "IDA",
-                "created_at": "2026-03-17T14:02:42.000Z",
-                "updated_at": null,
-                "closed_at": null,
+                "estado_actual_id": 7,
+                "tipo_de_vuelo": "IDA_Y_VUELTA",
+                "created_at": "2026-03-21T23:34:38.000Z",
+                "updated_at": "2026-03-22T05:11:17.000Z",
+                "closed_at": "2026-03-22T05:11:17.000Z",
                 "usuario": {
                     "id": 1,
                     "nombre": "Carlos",
                     "username": "carlos"
                 },
                 "estado_solicitud": {
-                    "id": 1,
-                    "estado": "PENDIENTE",
-                    "slug": "pendiente",
-                    "color_hexa_main": "#6c757d",
-                    "color_hexa_sec": "#adb5bd",
+                    "id": 7,
+                    "estado": "VIAJE PROGRAMADO",
+                    "slug": "viaje_programado",
                     "editable": true,
-                    "created_at": "2026-03-17T13:54:07.000Z"
+                    "created_at": "2026-03-21T23:34:07.000Z"
                 },
-                "cotizacion": []
+                "ruta": {
+                    "origen": "Bogota",
+                    "destino": "Cartagena",
+                    "preferencia_aerolinea": "Wingo"
+                },
+                "fechas": {
+                    "ida": "2026-05-02",
+                    "vuelta": "2026-05-15"
+                },
+                "cotizacion": [
+                    {
+                        "id": 5,
+                        "solicitud_id": 2,
+                        "cotizacion_anterior_id": null,
+                        "usuario_solicitante": {
+                            "id": 1,
+                            "nombre": "Carlos"
+                        },
+                        "usuario_emite_boleto": null,
+                        "estado_actual_id": 8,
+                        "cobertura": "IDA_Y_VUELTA",
+                        "valor_total": "850000",
+                        "created_at": "2026-03-22T04:58:51.000Z",
+                        "updated_at": "2026-03-22T05:00:22.000Z",
+                        "closed_at": null,
+                        "estado_cotizacion": {
+                            "id": 8,
+                            "estado": "COTIZACION ANULADA",
+                            "slug": "cotizacion_anulada",
+                            "editable": false,
+                            "created_at": "2026-03-21T23:34:07.000Z"
+                        },
+                        "ruta": {
+                            "origen": "Bogota",
+                            "destino": "Cartagena"
+                        },
+                        "detalle": {
+                            "ida": {
+                                "aerolinea": "Wingo",
+                                "fecha": "2026-02-02",
+                                "vuelo": "WA123",
+                                "clase_tarifaria": "ECONOMICA",
+                                "politica_equipaje": null
+                            },
+                            "vuelta": {
+                                "aerolinea": "Wingo",
+                                "fecha": "2026-03-15",
+                                "vuelo": "WA456",
+                                "clase_tarifaria": null,
+                                "politica_equipaje": null
+                            }
+                        },
+                        "boleto": []
+                    },
+                    {
+                        "id": 6,
+                        "solicitud_id": 2,
+                        "cotizacion_anterior_id": null,
+                        "usuario_solicitante": {
+                            "id": 1,
+                            "nombre": "Carlos"
+                        },
+                        "usuario_emite_boleto": null,
+                        "estado_actual_id": 8,
+                        "cobertura": "IDA_Y_VUELTA",
+                        "valor_total": "750000",
+                        "created_at": "2026-03-22T04:59:22.000Z",
+                        "updated_at": "2026-03-22T05:06:36.000Z",
+                        "closed_at": null,
+                        "estado_cotizacion": {
+                            "id": 8,
+                            "estado": "COTIZACION ANULADA",
+                            "slug": "cotizacion_anulada",
+                            "editable": false,
+                            "created_at": "2026-03-21T23:34:07.000Z"
+                        },
+                        "ruta": {
+                            "origen": "Bogota",
+                            "destino": "Cartagena"
+                        },
+                        "detalle": {
+                            "ida": {
+                                "aerolinea": "LATAM",
+                                "fecha": "2026-02-02",
+                                "vuelo": "LA148",
+                                "clase_tarifaria": "ECONOMICA",
+                                "politica_equipaje": null
+                            },
+                            "vuelta": {
+                                "aerolinea": "Wingo",
+                                "fecha": "2026-03-16",
+                                "vuelo": "WA755",
+                                "clase_tarifaria": null,
+                                "politica_equipaje": null
+                            }
+                        },
+                        "boleto": []
+                    },
+                    {
+                        "id": 7,
+                        "solicitud_id": 2,
+                        "cotizacion_anterior_id": 5,
+                        "usuario_solicitante": {
+                            "id": 1,
+                            "nombre": "Carlos"
+                        },
+                        "usuario_emite_boleto": {
+                            "id": 3,
+                            "nombre": "ar"
+                        },
+                        "estado_actual_id": 7,
+                        "cobertura": "IDA_Y_VUELTA",
+                        "valor_total": "860000",
+                        "created_at": "2026-03-22T05:00:22.000Z",
+                        "updated_at": "2026-03-22T05:06:36.000Z",
+                        "closed_at": null,
+                        "estado_cotizacion": {
+                            "id": 7,
+                            "estado": "COTIZACION SELECCIONADA",
+                            "slug": "cotizacion_seleccionada",
+                            "editable": false,
+                            "created_at": "2026-03-21T23:34:07.000Z"
+                        },
+                        "ruta": {
+                            "origen": "Bogota",
+                            "destino": "Cartagena"
+                        },
+                        "detalle": {
+                            "ida": {
+                                "aerolinea": "LATAM",
+                                "fecha": "2026-02-03",
+                                "vuelo": "LA129",
+                                "clase_tarifaria": "ECONOMICA",
+                                "politica_equipaje": "1 maleta de 23kg incluida"
+                            },
+                            "vuelta": {
+                                "aerolinea": "Wingo",
+                                "fecha": "2026-03-15",
+                                "vuelo": "WA456",
+                                "clase_tarifaria": "ECONOMICA",
+                                "politica_equipaje": null
+                            }
+                        },
+                        "boleto": [
+                            {
+                                "id": 3,
+                                "cotizacion_id": 7,
+                                "solicitud_id": 2,
+                                "reemplaza_boleto_id": 2,
+                                "usuario_solicitante": {
+                                    "id": 1,
+                                    "nombre": "Carlos"
+                                },
+                                "usuario_generador_boleto": {
+                                    "id": 3,
+                                    "nombre": "ar"
+                                },
+                                "estado_boleto": {
+                                    "id": 2,
+                                    "estado": "CONFORME POR EL EMPLEADO",
+                                    "slug": "conforme_empleado",
+                                    "editable": false,
+                                    "created_at": "2026-03-21T23:34:07.000Z"
+                                },
+                                "cobertura": "IDA_Y_VUELTA",
+                                "valor_final": "840000",
+                                "created_at": "2026-03-22T05:07:25.000Z",
+                                "ruta": {
+                                    "origen": "Bogota",
+                                    "destino": "Cartagena"
+                                },
+                                "segmentos": [
+                                    {
+                                        "tipo_segmento": "IDA",
+                                        "aerolinea": "LATAM",
+                                        "codigo_reserva": "ZXCV12",
+                                        "numero_tiquete": "987654321",
+                                        "numero_vuelo": "LA148",
+                                        "fecha_vuelo": "2026-02-02",
+                                        "fecha_compra": "2026-02-01",
+                                        "clase_tarifaria": "Económica",
+                                        "politica_equipaje": "1 maleta 23kg",
+                                        "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf",
+                                        "estado": "REPROGRAMADO"
+                                    },
+                                    {
+                                        "tipo_segmento": "VUELTA",
+                                        "aerolinea": "Wingo",
+                                        "codigo_reserva": "ZXCV12",
+                                        "numero_tiquete": "5252525252",
+                                        "numero_vuelo": "WA577",
+                                        "fecha_vuelo": "2026-03-23",
+                                        "fecha_compra": "2026-02-01",
+                                        "clase_tarifaria": "Económica",
+                                        "politica_equipaje": "1 maleta 23kg",
+                                        "url_archivo_adjunto": "https://dominio.com/boleto/4552.pdf",
+                                        "estado": "REPROGRAMADO"
+                                    }
+                                ]
+                            },
+                            {
+                                "id": 2,
+                                "cotizacion_id": 7,
+                                "solicitud_id": 2,
+                                "reemplaza_boleto_id": null,
+                                "usuario_solicitante": {
+                                    "id": 1,
+                                    "nombre": "Carlos"
+                                },
+                                "usuario_generador_boleto": {
+                                    "id": 3,
+                                    "nombre": "ar"
+                                },
+                                "estado_boleto": {
+                                    "id": 3,
+                                    "estado": "BOLETO ANULADO",
+                                    "slug": "boleto_anulado",
+                                    "editable": false,
+                                    "created_at": "2026-03-21T23:34:07.000Z"
+                                },
+                                "cobertura": "IDA_Y_VUELTA",
+                                "valor_final": "760000",
+                                "created_at": "2026-03-22T05:06:36.000Z",
+                                "ruta": {
+                                    "origen": "Bogota",
+                                    "destino": "Cartagena"
+                                },
+                                "segmentos": [
+                                    {
+                                        "tipo_segmento": "IDA",
+                                        "aerolinea": "LATAM",
+                                        "codigo_reserva": "ZXCV12",
+                                        "numero_tiquete": "987654321",
+                                        "numero_vuelo": "LA148",
+                                        "fecha_vuelo": "2026-02-02",
+                                        "fecha_compra": "2026-02-01",
+                                        "clase_tarifaria": "Económica",
+                                        "politica_equipaje": "1 maleta 23kg",
+                                        "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf",
+                                        "estado": "CONFIRMADO"
+                                    },
+                                    {
+                                        "tipo_segmento": "VUELTA",
+                                        "aerolinea": "Wingo",
+                                        "codigo_reserva": "ZXCV12",
+                                        "numero_tiquete": "987654321",
+                                        "numero_vuelo": "WA755",
+                                        "fecha_vuelo": "2026-03-16",
+                                        "fecha_compra": "2026-02-01",
+                                        "clase_tarifaria": "Económica",
+                                        "politica_equipaje": "1 maleta 23kg",
+                                        "url_archivo_adjunto": "https://dominio.com/boleto/4545.pdf",
+                                        "estado": "CONFIRMADO"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
             },
             {
-                "id": 5,
-                "radicado": "RAD-2026-033",
+                "id": 3,
+                "radicado": "RAD-2026-031",
                 "usuario_id": 1,
                 "estado_actual_id": 3,
-                "tipo_de_vuelo": "IDA_Y_VUELTA",
-                "created_at": "2026-03-17T14:02:43.000Z",
-                "updated_at": null,
+                "tipo_de_vuelo": "IDA",
+                "created_at": "2026-03-21T23:34:38.000Z",
+                "updated_at": "2026-03-22T05:27:46.000Z",
                 "closed_at": null,
                 "usuario": {
                     "id": 1,
@@ -521,35 +1061,61 @@ RESPUESTA:
                     "id": 3,
                     "estado": "COTIZACION CARGADA",
                     "slug": "cotizacion_cargada",
-                    "color_hexa_main": "#ffc107",
-                    "color_hexa_sec": "#ffda6a",
                     "editable": true,
-                    "created_at": "2026-03-17T13:54:07.000Z"
+                    "created_at": "2026-03-21T23:34:07.000Z"
+                },
+                "ruta": {
+                    "origen": "Bogotá",
+                    "destino": "Cali",
+                    "preferencia_aerolinea": "LATAM"
+                },
+                "fechas": {
+                    "ida": "2026-04-15",
+                    "vuelta": null
                 },
                 "cotizacion": [
                     {
-                        "id": 3,
-                        "solicitud_id": 5,
+                        "id": 1,
+                        "solicitud_id": 3,
                         "cotizacion_anterior_id": null,
+                        "usuario_solicitante": {
+                            "id": 1,
+                            "nombre": "Carlos"
+                        },
+                        "usuario_emite_boleto": null,
                         "estado_actual_id": 1,
-                        "cobertura": "IDA_Y_VUELTA",
+                        "cobertura": "IDA",
                         "valor_total": "850",
-                        "created_at": "2026-03-17T14:02:43.000Z",
-                        "updated_at": null,
+                        "created_at": "2026-03-21T23:34:38.000Z",
+                        "updated_at": "2026-03-22T05:27:46.000Z",
                         "closed_at": null,
                         "estado_cotizacion": {
                             "id": 1,
                             "estado": "COTIZACION NUEVA",
                             "slug": "cotizacion_nueva",
                             "editable": true,
-                            "created_at": "2026-03-17T13:54:07.000Z"
-                        }
+                            "created_at": "2026-03-21T23:34:07.000Z"
+                        },
+                        "ruta": {
+                            "origen": "Bogotá",
+                            "destino": "Cali"
+                        },
+                        "detalle": {
+                            "ida": {
+                                "aerolinea": "LATAM",
+                                "fecha": "2026-04-15",
+                                "vuelo": "LA4321",
+                                "clase_tarifaria": "Económica",
+                                "politica_equipaje": "Solo equipaje de mano"
+                            }
+                        },
+                        "boleto": []
                     }
                 ]
             }
         ],
         "paginacion": {
-            "total": 5,
+            "total": 6,
             "totalPaginas": 3,
             "paginaActual": 1,
             "limit": 2,
@@ -562,43 +1128,17 @@ RESPUESTA:
     }
 }
 
-GET http://localhost:3000/solicitud?usuario_id=1&estado=pendiente
+GET http://localhost:3000/api/v1/solicitud?usuario_id=1&estado=pendiente
 
 RESPUESTA:
 {
     "success": true,
     "message": "Solicitudes obtenidas correctamente",
     "data": {
-        "solicitudes": [
-            {
-                "id": 1,
-                "radicado": "RAD-2026-010",
-                "usuario_id": 1,
-                "estado_actual_id": 1,
-                "tipo_de_vuelo": "IDA",
-                "created_at": "2026-03-17T14:02:42.000Z",
-                "updated_at": null,
-                "closed_at": null,
-                "usuario": {
-                    "id": 1,
-                    "nombre": "Carlos",
-                    "username": "carlos"
-                },
-                "estado_solicitud": {
-                    "id": 1,
-                    "estado": "PENDIENTE",
-                    "slug": "pendiente",
-                    "color_hexa_main": "#6c757d",
-                    "color_hexa_sec": "#adb5bd",
-                    "editable": true,
-                    "created_at": "2026-03-17T13:54:07.000Z"
-                },
-                "cotizacion": []
-            }
-        ],
+        "solicitudes": [],
         "paginacion": {
-            "total": 1,
-            "totalPaginas": 1,
+            "total": 0,
+            "totalPaginas": 0,
             "paginaActual": 1,
             "limit": 10,
             "orden": "desc",
@@ -610,7 +1150,7 @@ RESPUESTA:
     }
 }
 
-GET http://localhost:3000/solicitud?page=2&limit=3
+GET http://localhost:3000/api/v1/solicitud?page=3&limit=1
 RESPUESTA:
 {
     "success": true,
@@ -618,13 +1158,13 @@ RESPUESTA:
     "data": {
         "solicitudes": [
             {
-                "id": 4,
-                "radicado": "RAD-2026-032",
+                "id": 3,
+                "radicado": "RAD-2026-031",
                 "usuario_id": 1,
                 "estado_actual_id": 3,
                 "tipo_de_vuelo": "IDA",
-                "created_at": "2026-03-17T14:02:43.000Z",
-                "updated_at": null,
+                "created_at": "2026-03-21T23:34:38.000Z",
+                "updated_at": "2026-03-22T05:27:46.000Z",
                 "closed_at": null,
                 "usuario": {
                     "id": 1,
@@ -635,126 +1175,64 @@ RESPUESTA:
                     "id": 3,
                     "estado": "COTIZACION CARGADA",
                     "slug": "cotizacion_cargada",
-                    "color_hexa_main": "#ffc107",
-                    "color_hexa_sec": "#ffda6a",
                     "editable": true,
-                    "created_at": "2026-03-17T13:54:07.000Z"
+                    "created_at": "2026-03-21T23:34:07.000Z"
+                },
+                "ruta": {
+                    "origen": "Bogotá",
+                    "destino": "Cali",
+                    "preferencia_aerolinea": "LATAM"
+                },
+                "fechas": {
+                    "ida": "2026-04-15",
+                    "vuelta": null
                 },
                 "cotizacion": [
                     {
-                        "id": 2,
-                        "solicitud_id": 4,
+                        "id": 1,
+                        "solicitud_id": 3,
                         "cotizacion_anterior_id": null,
+                        "usuario_solicitante": {
+                            "id": 1,
+                            "nombre": "Carlos"
+                        },
+                        "usuario_emite_boleto": null,
                         "estado_actual_id": 1,
                         "cobertura": "IDA",
                         "valor_total": "850",
-                        "created_at": "2026-03-17T14:02:43.000Z",
-                        "updated_at": null,
+                        "created_at": "2026-03-21T23:34:38.000Z",
+                        "updated_at": "2026-03-22T05:27:46.000Z",
                         "closed_at": null,
                         "estado_cotizacion": {
                             "id": 1,
                             "estado": "COTIZACION NUEVA",
                             "slug": "cotizacion_nueva",
                             "editable": true,
-                            "created_at": "2026-03-17T13:54:07.000Z"
-                        }
-                    }
-                ]
-            },
-            {
-                "id": 5,
-                "radicado": "RAD-2026-033",
-                "usuario_id": 1,
-                "estado_actual_id": 3,
-                "tipo_de_vuelo": "IDA_Y_VUELTA",
-                "created_at": "2026-03-17T14:02:43.000Z",
-                "updated_at": null,
-                "closed_at": null,
-                "usuario": {
-                    "id": 1,
-                    "nombre": "Carlos",
-                    "username": "carlos"
-                },
-                "estado_solicitud": {
-                    "id": 3,
-                    "estado": "COTIZACION CARGADA",
-                    "slug": "cotizacion_cargada",
-                    "color_hexa_main": "#ffc107",
-                    "color_hexa_sec": "#ffda6a",
-                    "editable": true,
-                    "created_at": "2026-03-17T13:54:07.000Z"
-                },
-                "cotizacion": [
-                    {
-                        "id": 3,
-                        "solicitud_id": 5,
-                        "cotizacion_anterior_id": null,
-                        "estado_actual_id": 1,
-                        "cobertura": "IDA_Y_VUELTA",
-                        "valor_total": "850",
-                        "created_at": "2026-03-17T14:02:43.000Z",
-                        "updated_at": null,
-                        "closed_at": null,
-                        "estado_cotizacion": {
-                            "id": 1,
-                            "estado": "COTIZACION NUEVA",
-                            "slug": "cotizacion_nueva",
-                            "editable": true,
-                            "created_at": "2026-03-17T13:54:07.000Z"
-                        }
-                    }
-                ]
-            },
-            {
-                "id": 6,
-                "radicado": "RAD-2026-040",
-                "usuario_id": 2,
-                "estado_actual_id": 4,
-                "tipo_de_vuelo": "IDA_Y_VUELTA",
-                "created_at": "2026-03-17T14:02:43.000Z",
-                "updated_at": null,
-                "closed_at": null,
-                "usuario": {
-                    "id": 2,
-                    "nombre": "Alvaro",
-                    "username": "alvaro"
-                },
-                "estado_solicitud": {
-                    "id": 4,
-                    "estado": "BOLETO CARGADO",
-                    "slug": "boleto_cargado",
-                    "color_hexa_main": "#20c997",
-                    "color_hexa_sec": "#63e6be",
-                    "editable": true,
-                    "created_at": "2026-03-17T13:54:07.000Z"
-                },
-                "cotizacion": [
-                    {
-                        "id": 4,
-                        "solicitud_id": 6,
-                        "cotizacion_anterior_id": null,
-                        "estado_actual_id": 7,
-                        "cobertura": "IDA_Y_VUELTA",
-                        "valor_total": "1500.5",
-                        "created_at": "2026-03-17T14:02:43.000Z",
-                        "updated_at": null,
-                        "closed_at": null,
-                        "estado_cotizacion": {
-                            "id": 7,
-                            "estado": "COTIZACION SELECCIONADA",
-                            "slug": "cotizacion_seleccionada",
-                            "editable": false,
-                            "created_at": "2026-03-17T13:54:07.000Z"
-                        }
+                            "created_at": "2026-03-21T23:34:07.000Z"
+                        },
+                        "ruta": {
+                            "origen": "Bogotá",
+                            "destino": "Cali"
+                        },
+                        "detalle": {
+                            "ida": {
+                                "aerolinea": "LATAM",
+                                "fecha": "2026-04-15",
+                                "vuelo": "LA4321",
+                                "clase_tarifaria": "Económica",
+                                "politica_equipaje": "Solo equipaje de mano"
+                            }
+                        },
+                        "boleto": []
                     }
                 ]
             }
         ],
         "paginacion": {
             "total": 7,
-            "totalPaginas": 3,
-            "paginaActual": 2,
-            "limit": 3,
+            "totalPaginas": 7,
+            "paginaActual": 3,
+            "limit": 1,
             "orden": "desc",
             "filtros": {
                 "estado": null,
@@ -772,7 +1250,9 @@ RESPUESTA:
   // RUTA DINÁMICA GET /solicitud/:id
   // Por parámetro de ruta → GET /solicitudes/5
   // GET /solicitud/:id
+    
   @Get(':id') 
+  @ApiExcludeEndpoint() 
   @Roles('SUPERADMIN','DEMO')
   @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerPorId(@Param('id') id: string) {
@@ -783,7 +1263,10 @@ RESPUESTA:
 
   // 7.5 Cerrar solicitud (marca closed_at, sin borrado físico)
   // POST /solicitud/:id/cerrar
+    
   @Post(':id/cerrar')
+    @ApiOperation({ summary: 'Cerrar solicitud por parte de un administrador' })
+    @ApiExtension('x-order', 9)
   @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
   @UseGuards(JwtAuthGuard, RolesGuard)
   async cerrarSolicitud(
@@ -799,7 +1282,7 @@ RESPUESTA:
   /*
   DESCRIPCION: Este endpoint permite "cerrar" una solicitud sin eliminarla físicamente de la base de datos. Al cerrar una solicitud, se marca el campo closed_at con la fecha y hora actual, lo que indica que la solicitud ya no está activa ni visible en los listados normales.
   ENDPOINT POST /solicitud/:id/cerrar
-  Ejemplo: POST http://localhost:3000/solicitud/5/cerrar
+  Ejemplo: POST http://localhost:3000/api/v1/solicitud/5/cerrar
 
   BODY:
   {
@@ -850,8 +1333,13 @@ RESPUESTA:
 
   // Obtener historial de estados de una solicitud por ID
   // GET /solicitud/:id/historial-estado
-  @UseGuards(JwtAuthGuard, RolesGuard)
+
+   
   @Get(':id/historial-estado')
+  @ApiOperation({ summary: 'Obtener historial de estados de una solicitud (solo para administradores)' })
+  @ApiExtension('x-order', 5)
+  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerHistorialEstadoPorId(@Param('id') id: string) {
     return this.solicitudService.obtenerHistorialPorSolicitudId(Number(id))
   }
@@ -863,6 +1351,8 @@ RESPUESTA:
   // 8️⃣ Eliminar físicamente todas las solicitudes con todas sus dependencias
   // DELETE /solicitud/eliminar-todas
   @Delete('eliminar-todas')
+  @ApiExcludeEndpoint() 
+  @ApiOperation({ summary: 'Eliminar físicamente todas las solicitudes de viaje (endpoint de seguridad crítica)' })
   @Roles('SUPERADMIN')
   @UseGuards(JwtAuthGuard, RolesGuard)
   async eliminarTodasLasSolicitudes(
@@ -873,7 +1363,7 @@ RESPUESTA:
 /*
 DESCRIPCION: Este endpoint es para eliminar físicamente todas las solicitudes de viaje y todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR_TODAS") para evitar borrados accidentales. El controlador recibe los datos de confirmación en el cuerpo de la petición y luego llama al método eliminarTodasLasSolicitudes del servicio, que se encarga de realizar la eliminación física en la base de datos. Si la eliminación es exitosa, se dispara un evento SOLICITUDES_ELIMINADAS_COMPLETAMENTE para notificar a otros sistemas o servicios interesados.
 ENDPOINT: DELETE /solicitud/eliminar-todas
-  Ejemplo: DELETE http://localhost:3000/solicitud/eliminar-todas
+  Ejemplo: DELETE http://localhost:3000/api/v1/solicitud/eliminar-todas
 BODY:
   {
     "confirmacion": "ELIMINAR_TODAS",
@@ -888,6 +1378,8 @@ RESPUESTA:
   // DELETE /solicitud/usuario/:usuarioId
 
   @Delete('usuario/:usuarioId')
+    @ApiOperation({ summary: 'Eliminar físicamente todas las solicitudes de un usuario específico (endpoint de seguridad crítica)' })
+  @ApiExcludeEndpoint() 
   @Roles('SUPERADMIN')
   @UseGuards(JwtAuthGuard, RolesGuard)
   async eliminarSolicitudesPorUsuario(
@@ -902,7 +1394,7 @@ Aunque este endpoint existe en el controlador, no se expondrá en la documentaci
 DESCRIPCION: Este endpoint es para eliminar físicamente todas las solicitudes de viaje creadas por un usuario específico, junto con todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR_POR_USUARIO") para evitar borrados accidentales. 
 
 ENDPOINT: DELETE /solicitud/usuario/:usuarioId
-  Ejemplo: DELETE http://localhost:3000/solicitud/usuario/5
+  Ejemplo: DELETE http://localhost:3000/api/v1/solicitud/usuario/5
 BODY:
   {
     "confirmacion": "ELIMINAR_POR_USUARIO",
@@ -916,6 +1408,8 @@ RESPUESTA:
   // 7️⃣ Eliminar físicamente una solicitud con todas sus dependencias
   // DELETE /solicitud/:id
   @Delete(':id')
+  @ApiOperation({ summary: 'Eliminar físicamente una solicitud específica (endpoint de seguridad crítica - solo GERENCIA)' })
+//   @ApiExcludeEndpoint() 
   @Roles('SUPERADMIN')
   @UseGuards(JwtAuthGuard, RolesGuard)
   async eliminarSolicitudCompletamente(

@@ -3,11 +3,23 @@ import { AuthService } from './auth.service'
 import { Public } from './decorators/public.decorator'
 import { LoginDto } from './dto/login.dto'
 import { LocalAuthGuard } from './guards/local-auth.guard'
+import { ApiTags} from '@nestjs/swagger'
+import { Throttle, SkipThrottle } from '@nestjs/throttler'
 
-@Controller('auth')
+
+
+
+@ApiTags('auth')
+@SkipThrottle({ 'heavy-load': true, 'normal-human': true , 'health': true }) //'restrictive': true,
+// @Throttle({ 'restrictive': { ttl: 60000, limit: 4 } })  // no se personaliza
+@Controller({
+    path: 'auth',
+    version: '1'
+})
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+// 🛡️ TODOS los endpoints de aquí usarán 40 req/min  
   @Public()
   @UseGuards(LocalAuthGuard)
   @Post('login')
@@ -19,7 +31,7 @@ export class AuthController {
 /*
 DESCRIPCIÓN: Endpoint para iniciar sesión y obtener un JWT.
 ENDPOINT: POST /auth/login
-            Ej:  POST http://localhost:3000/auth/login
+            Ej:  POST http://localhost:3000/api/v1/auth/login
 BODY
 {
     "username": "ar",
