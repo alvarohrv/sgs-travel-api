@@ -65,7 +65,7 @@
 ═══════════════════════════════════════════════════════════════════════════
 */
 
-import { Body, Controller, Delete, Get, Post, Param, Query, Request, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Post, Param, Query, Request, UseGuards, SetMetadata } from '@nestjs/common'
 import { DemoPolicy } from '../../auth/decorators/demo-policy.decorator'
 import { Roles } from '../../auth/decorators/roles.decorator'
 import { DemoPolicyGuard } from '../../auth/guards/demo-policy.guard'
@@ -84,6 +84,8 @@ import { Throttle, SkipThrottle } from '@nestjs/throttler'
 
 
 //@Controller('solicitud') 
+// @Roles('SUPERADMIN')
+// @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiTags('solicitud')
 @ApiBearerAuth()
 @SkipThrottle({ 'restrictive': true, 'health': true })
@@ -307,6 +309,7 @@ export class SolicitudController {
   // GET /solicitud/todas
     
   @Get('todas')
+  //@SetMetadata('isPublic', true) // Antes era publico.
   @ApiExcludeEndpoint() // Este endpoint no aparecerá en la documentación
   @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
   @UseGuards(JwtAuthGuard, RolesGuard)

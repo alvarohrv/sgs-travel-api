@@ -12,9 +12,15 @@ import { AuthModule } from './auth/auth.module';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
+    // Carga global de variables de entorno para todo NestJS.
+    ConfigModule.forRoot({
+      isGlobal: true,
+      // validationSchema: null, // Aquí podrías agregar un esquema de validación con Joi para validar las variables de entorno. Pero en este caso se valido en cada módulo específico (ej: jwt.config.ts) para tener validaciones específicas por módulo.
+    }),
     PrismaModule,
     SolicitudModule,
     CotizacionModule,

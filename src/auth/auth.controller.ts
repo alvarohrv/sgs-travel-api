@@ -1,12 +1,12 @@
-import { Body, Controller, Post, Request, UseGuards } from '@nestjs/common'
-import { AuthService } from './auth.service'
-import { Public } from './decorators/public.decorator'
-import { LoginDto } from './dto/login.dto'
+import { Body, Controller, Post, Request, UseGuards, SetMetadata } from '@nestjs/common'
 import { LocalAuthGuard } from './guards/local-auth.guard'
 import { ApiTags} from '@nestjs/swagger'
 import { Throttle, SkipThrottle } from '@nestjs/throttler'
 
-
+import { Public } from './decorators/public.decorator'
+import { LoginDto } from './dto/login.dto'
+import { AuthService } from './auth.service'
+import { PreJwtPayload } from './types/jwt-payload.type'
 
 
 @ApiTags('auth')
@@ -20,12 +20,15 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
 // 🛡️ TODOS los endpoints de aquí usarán 40 req/min  
+  //@SetMetadata('isPublic', true) // Ahora se usará el decorador @Public (ver src/auth/decorators/public.decorator.ts) 
   @Public()
-  @UseGuards(LocalAuthGuard)
+// @UseGuards(AuthGuard('local'))
+  @UseGuards(LocalAuthGuard) // Este guard se encarga de validar las credenciales usando la estrategia local (username/password). Si la validación es exitosa, inyecta el usuario en req.user.
   @Post('login')
   async login(@Body() _body: LoginDto, @Request() req: any) {
-    // Si LocalStrategy valida, Passport inyecta el usuario en req.user.
-    return this.authService.login(req.user)
+    // Si LocalStrategy valida, Passport inyecta el usuario en req.user
+    return this.authService.login(req.user as PreJwtPayload)
+    // nota: req.user esta definido por Passport después de validar las credenciales con LocalStrategy, no se usa el modelo Usuario directamente.
   }
 }
 /*
