@@ -1,6 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
+
 import { UsuarioService } from '../modules/usuario/usuario.service'
+import { JwtPayloadType, ResponseLoginJwt, PreJwtPayload } from './types/jwt-payload.type'
 
 @Injectable()
 export class AuthService {
@@ -26,34 +28,41 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales invalidas')
     }
 
-    // Retornamos solo lo necesario para crear payload y responder al cliente.
-    return {
+    // Retornamos solo lo necesario para crear payload y responder al cliente. (sin pass)
+    // Forma 1
+    // const { password_hash, ...result } = usuario
+    // return result 
+    // Forma 2 (mas visual)
+    const userPayload: PreJwtPayload = {
       id: usuario.id,
       username: usuario.username,
       rol: usuario.rol,
     }
+    return userPayload
   }
 
   // Genera JWT con sub (id del usuario) y role (rol actual).
   async login(user: { id: number; username: string; rol: string }) {
-    const payload = {
+    const payload: JwtPayloadType = {
       sub: user.id,
       role: user.rol,
     }
 
     const token = this.jwtService.sign(payload)
 
-    return {
+    const response: ResponseLoginJwt = {
       success: true,
       message: 'Login exitoso',
       data: {
         token,
-        user: {
+        user: { // opcional, pero es común retornar info del usuario
           id: user.id,
           username: user.username,
           role: user.rol,
         },
       },
     }
+
+    return response
   }
 }
