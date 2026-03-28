@@ -59,20 +59,26 @@
 
 ═══════════════════════════════════════════════════════════════════════════
 */
-import { Roles } from '../../auth/decorators/roles.decorator'
-import { DemoPolicy } from '../../auth/decorators/demo-policy.decorator'
-import { DemoPolicyGuard } from '../../auth/guards/demo-policy.guard'
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
-import { RolesGuard } from '../../auth/guards/roles.guard'
+
 import { Body, Controller, Get, Post, Param, Request, UseGuards } from '@nestjs/common'
-import { CotizacionService } from './cotizacion.service'
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
+import { Throttle, SkipThrottle } from '@nestjs/throttler'
+
 import { CrearCotizacionDto } from './dto/crear-cotizacion.dto'
 import { ReemplazarCotizacionDto } from './dto/reemplazar-cotizacion.dto'
 import { RechazarCotizacionDto } from './dto/rechazar-cotizacion.dto'
 import { SeleccionarCotizacionDto } from './dto/seleccionar-cotizacion.dto'
 import { NovedadCotizacionDto } from './dto/novedad-cotizacion.dto'
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
-import { Throttle, SkipThrottle } from '@nestjs/throttler'
+import { Roles } from '../../auth/decorators/roles.decorator'
+import { DemoPolicy } from '../../auth/decorators/demo-policy.decorator'
+import { DemoPolicyGuard } from '../../auth/guards/demo-policy.guard'
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
+import { RolesGuard } from '../../auth/guards/roles.guard'
+import { CotizacionService } from './cotizacion.service'
+import { Rol } from 'src/auth/types/rol.enum'   
+
+
+
 
 @ApiTags('cotizacion')
 @ApiBearerAuth()
@@ -89,7 +95,7 @@ export class CotizacionController {
   // 1️⃣.1 Admin carga cotización sobre una solicitud
   // POST /solicitud/:solicitudId/cotizacion
   @Post('solicitud/:solicitudId/cotizacion')
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard, DemoPolicyGuard)
   @DemoPolicy({ resource: 'cotizacion', action: 'create' })
   async crearCotizacion(
@@ -210,7 +216,7 @@ export class CotizacionController {
   // Novedad: Es un impedimento objetivo del proceso. Se usa para reportar situaciones que requieren atención o corrección por parte del admin, como errores en la cotización, cambios en la disponibilidad de vuelos, cancelaciones, etc.
   // POST /cotizacion/:id/novedad
   @Post('cotizacion/:id/novedad')
-  @Roles('SUPERADMIN', 'ADMIN', 'SOLICITANTE', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.SOLICITANTE, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async reportarNovedad(
     @Param('id') id: string,
@@ -267,7 +273,7 @@ export class CotizacionController {
   
   // POST /solicitud/:solicitudId/cotizacion/:cotizacionId/reemplazar
   @Post('solicitud/:solicitudId/cotizacion/:cotizacionId/reemplazar')
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard, DemoPolicyGuard)
   @DemoPolicy({ resource: 'cotizacion', action: 'create' })
   async reemplazarCotizacion(
@@ -379,7 +385,7 @@ BODY (nueva cotización):
   // Rechazo: Es una decisión subjetiva del usuario.
   // POST /cotizacion/:id/rechazar
   @Post('cotizacion/:id/rechazar')
-  @Roles('SUPERADMIN', 'ADMIN', 'SOLICITANTE', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.SOLICITANTE, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async rechazarCotizacion(
     @Param('id') id: string,
@@ -424,7 +430,7 @@ BODY (nueva cotización):
 
   // 4️⃣ El admin revisa, decide NO crear una nueva cotización.
   @Post('cotizacion/:id/conservar')
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async conservarCotizacion(
     @Param('id') id: string,
@@ -471,7 +477,7 @@ BODY (nueva cotización):
   // 5️⃣ Empleado selecciona cotizaciones para una solicitud
   // POST /solicitud/:solicitudId/seleccionar-cotizacion
   @Post('solicitud/:solicitudId/seleccionar-cotizacion')
-  @Roles('SUPERADMIN', 'SOLICITANTE', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.SOLICITANTE, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async seleccionarCotizacion(
     @Param('solicitudId') solicitudId: string,
@@ -540,7 +546,7 @@ BODY (nueva cotización):
 
   // 6️⃣ Listar cotizaciones de una solicitud
   // GET /solicitud/:solicitudId/cotizacion
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('solicitud/:solicitudId/cotizacion')
   async obtenerPorSolicitud(@Param('solicitudId') solicitudId: string) {
@@ -768,7 +774,7 @@ URL de ejemplo: http://localhost:3000/api/v1/cotizacion/7
   // GET /cotizacion/:id/historial-estado
 
   @Get('cotizacion/:id/historial-estado')
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerHistorialEstadoPorId(@Param('id') id: string) {
     return this.cotizacionService.obtenerHistorialPorCotizacionId(Number(id))

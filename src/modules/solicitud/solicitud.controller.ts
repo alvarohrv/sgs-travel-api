@@ -66,22 +66,22 @@
 */
 
 import { Body, Controller, Delete, Get, Post, Param, Query, Request, UseGuards, SetMetadata } from '@nestjs/common'
-import { DemoPolicy } from '../../auth/decorators/demo-policy.decorator'
-import { Roles } from '../../auth/decorators/roles.decorator'
-import { DemoPolicyGuard } from '../../auth/guards/demo-policy.guard'
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
-import { RolesGuard } from '../../auth/guards/roles.guard'
-import { SolicitudService } from './solicitud.service'
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOperation, ApiQuery, ApiTags, ApiExtension } from '@nestjs/swagger'
 import { CerrarSolicitudDto } from './dto/cerrar-solicitud.dto'
 import { CrearSolicitudDto } from './dto/crear-solicitud.dto'
 import { EliminarSolicitudDto } from './dto/eliminar-solicitud.dto'
 import { EliminarSolicitudesUsuarioDto } from './dto/eliminar-solicitudes-usuario.dto'
 import { EliminarTodasSolicitudesDto } from './dto/eliminar-todas-solicitudes.dto'
 import { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto'
-import { ApiTags, ApiBearerAuth, ApiExcludeEndpoint, ApiExtension, ApiOperation, ApiQuery } from '@nestjs/swagger'
-//import { audit } from 'rxjs'
+import { DemoPolicy } from '../../auth/decorators/demo-policy.decorator'
+import { Roles } from '../../auth/decorators/roles.decorator'
+import { DemoPolicyGuard } from '../../auth/guards/demo-policy.guard'
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
+import { RolesGuard } from '../../auth/guards/roles.guard'
+import { SolicitudService } from './solicitud.service'
 import { Throttle, SkipThrottle } from '@nestjs/throttler'
-
+import { Rol } from '../../auth/types/rol.enum'
+//import { audit } from 'rxjs'
 
 //@Controller('solicitud') 
 // @Roles('SUPERADMIN')
@@ -118,7 +118,7 @@ export class SolicitudController {
   @Post()
     @ApiOperation({ summary: 'Crear solicitud' })
     @ApiExtension('x-order', 6)
-  @Roles('SUPERADMIN', 'ADMIN', 'SOLICITANTE', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.SOLICITANTE, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard, DemoPolicyGuard)
   @DemoPolicy({ resource: 'solicitud', action: 'create' })
   async crearSolicitud(@Body() data: CrearSolicitudDto, @Request() req: any) {
@@ -178,7 +178,7 @@ export class SolicitudController {
   @Post(':id/iniciar-revision')
     @ApiOperation({ summary: 'Iniciar revisión de solicitud por parte de un administrador' })
     @ApiExtension('x-order', 7)
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async iniciarRevision(
     @Param('id') id: string,
@@ -214,7 +214,7 @@ export class SolicitudController {
   @Post(':id/rechazar')
     @ApiOperation({ summary: 'Rechazar solicitud por parte de un administrador' })
     @ApiExtension('x-order', 8)
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
 
   async rechazarSolicitud(
@@ -311,7 +311,7 @@ export class SolicitudController {
   @Get('todas')
   //@SetMetadata('isPublic', true) // Antes era publico.
   @ApiExcludeEndpoint() // Este endpoint no aparecerá en la documentación
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerTodas() {
     // Sin parámetros → usa los defaults: page=1, limit=10, orden='desc'
@@ -358,7 +358,7 @@ export class SolicitudController {
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
   @ApiQuery({ name: 'orden', required: false, enum: ['asc', 'desc'] })
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerSolicitudes(
     @Query('id') id?: string,
@@ -1256,7 +1256,7 @@ RESPUESTA:
     
   @Get(':id') 
   @ApiExcludeEndpoint() 
-  @Roles('SUPERADMIN','DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerPorId(@Param('id') id: string) {
     return this.solicitudService.buscarPorId(id)
@@ -1270,7 +1270,7 @@ RESPUESTA:
   @Post(':id/cerrar')
     @ApiOperation({ summary: 'Cerrar solicitud por parte de un administrador' })
     @ApiExtension('x-order', 9)
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async cerrarSolicitud(
     @Param('id') id: string,
@@ -1341,7 +1341,7 @@ RESPUESTA:
   @Get(':id/historial-estado')
   @ApiOperation({ summary: 'Obtener historial de estados de una solicitud (solo para administradores)' })
   @ApiExtension('x-order', 5)
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async obtenerHistorialEstadoPorId(@Param('id') id: string) {
     return this.solicitudService.obtenerHistorialPorSolicitudId(Number(id))
@@ -1356,7 +1356,7 @@ RESPUESTA:
   @Delete('eliminar-todas')
   @ApiExcludeEndpoint() 
   @ApiOperation({ summary: 'Eliminar físicamente todas las solicitudes de viaje (endpoint de seguridad crítica)' })
-  @Roles('SUPERADMIN')
+  @Roles(Rol.SUPERADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async eliminarTodasLasSolicitudes(
     @Body() data: EliminarTodasSolicitudesDto,
@@ -1383,7 +1383,7 @@ RESPUESTA:
   @Delete('usuario/:usuarioId')
     @ApiOperation({ summary: 'Eliminar físicamente todas las solicitudes de un usuario específico (endpoint de seguridad crítica)' })
   @ApiExcludeEndpoint() 
-  @Roles('SUPERADMIN')
+  @Roles(Rol.SUPERADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async eliminarSolicitudesPorUsuario(
     @Param('usuarioId') usuarioId: string,
@@ -1413,7 +1413,7 @@ RESPUESTA:
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar físicamente una solicitud específica (endpoint de seguridad crítica - solo GERENCIA)' })
 //   @ApiExcludeEndpoint() 
-  @Roles('SUPERADMIN')
+  @Roles(Rol.SUPERADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async eliminarSolicitudCompletamente(
     @Param('id') id: string,

@@ -3,20 +3,21 @@
     ///// validar de nuevo si ocurre ''COTIZACION SELECCIONADA'' al crear boleto
 
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Request, UseGuards } from '@nestjs/common';
-import { BoletoService } from './boleto.service';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
+import { Throttle, SkipThrottle} from '@nestjs/throttler'
+
 import { EmitirBoletoDto } from './dto/emitir-boleto.dto';
 import { NovedadBoletoDto } from './dto/novedad-boleto.dto';
 import { ConservarBoletoDto } from './dto/conservar-boleto.dto';
 import { ConfirmarBoletoDto } from './dto/confirmar-boleto.dto';
 import { ReemplazarBoletoDto } from './dto/reemplazar-boleto.dto';
-
 import { Roles } from '../../auth/decorators/roles.decorator'
 import { DemoPolicy } from '../../auth/decorators/demo-policy.decorator'
 import { DemoPolicyGuard } from '../../auth/guards/demo-policy.guard'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../../auth/guards/roles.guard'
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
-import { Throttle, SkipThrottle} from '@nestjs/throttler'
+import { BoletoService } from './boleto.service';
+import { Rol } from '../../auth/types/rol.enum'
 
 @ApiTags('boleto')
 @ApiBearerAuth()
@@ -32,7 +33,7 @@ export class BoletoController {
 
   // POST /cotizacion/:cotizacionId/boleto
   @Post('cotizacion/:cotizacionId/boleto')
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard, DemoPolicyGuard)
   @DemoPolicy({ resource: 'boleto', action: 'create' })
   async emitirBoleto(
@@ -165,7 +166,7 @@ export class BoletoController {
  
   // POST /boleto/:id/novedad
   @Post('boleto/:id/novedad')
-  @Roles('SUPERADMIN', 'ADMIN', 'SOLICITANTE', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.SOLICITANTE, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async generarNovedad(
     @Param('id') id: string,
@@ -215,7 +216,7 @@ export class BoletoController {
 
   // POST /boleto/:boletoId/reemplazar
   @Post('boleto/:boletoId/reemplazar')
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard, DemoPolicyGuard)
   @DemoPolicy({ resource: 'boleto', action: 'create' })
   async reemplazarBoleto(
@@ -343,7 +344,7 @@ RESPUESTA
 
   // POST /boleto/:id/conservar
   @Post('boleto/:id/conservar')
-  @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async conservarBoleto(
     @Param('id') id: string,
@@ -393,7 +394,7 @@ RESPUESTA
 
   // POST /boleto/:id/confirmar
   @Post('boleto/:id/confirmar')
-  @Roles('SUPERADMIN', 'SOLICITANTE', 'DEMO')
+  @Roles(Rol.SUPERADMIN, Rol.SOLICITANTE, Rol.DEMO)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async confirmarBoleto(
     @Param('id') id: string,
@@ -518,7 +519,7 @@ RESPUESTA
         // Obtener historial de estados de un boleto por ID
     // GET /boleto/:id/historial-estado
     @Get('boleto/:id/historial-estado')
-    @Roles('SUPERADMIN', 'ADMIN', 'DEMO')
+    @Roles(Rol.SUPERADMIN, Rol.ADMIN, Rol.DEMO)
     @UseGuards(JwtAuthGuard, RolesGuard)
     async obtenerHistorialEstadoPorId(@Param('id', ParseIntPipe) id: number) {
         return this.boletoService.obtenerHistorialPorBoletoId(id)
