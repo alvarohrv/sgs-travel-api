@@ -1,13 +1,14 @@
 import { Body, Controller, Param, Patch, Post, UseGuards } from '@nestjs/common'
-import { UsuarioService } from './usuario.service'
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
+import { Throttle, SkipThrottle } from '@nestjs/throttler'
+
 import { CambiarRolUsuarioDto } from './dto/cambiar-rol-usuario.dto'
 import { CrearUsuarioDto } from './dto/crear-usuario.dto'
-
 import { Roles } from '../../auth/decorators/roles.decorator'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../../auth/guards/roles.guard'
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
-import { Throttle, SkipThrottle } from '@nestjs/throttler'
+import { UsuarioService } from './usuario.service'
+import { Rol } from '../../auth/types/rol.enum'
 
 @ApiTags('usuario')
 @ApiBearerAuth()
@@ -21,7 +22,7 @@ export class UsuarioController {
   constructor(private readonly usuarioService: UsuarioService) {}
 
   @Post()
-  @Roles('SUPERADMIN')
+  @Roles(Rol.SUPERADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async crearUsuario(@Body() data: CrearUsuarioDto) {
     return this.usuarioService.crearUsuario(data)
@@ -61,7 +62,7 @@ export class UsuarioController {
 */
 
   @Patch(':id/rol')
-  @Roles('SUPERADMIN')
+  @Roles(Rol.SUPERADMIN)
   @UseGuards(JwtAuthGuard, RolesGuard)
   async cambiarRol(
     @Param('id') id: string,
