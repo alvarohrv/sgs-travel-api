@@ -4,7 +4,6 @@ import { JwtService } from '@nestjs/jwt'
 import { UsuarioService } from '../modules/usuario/usuario.service'
 import { JwtPayloadType, ResponseLoginJwt, PreJwtPayload } from './types/jwt-payload.type'
 
-
 @Injectable()
 export class AuthService {
   // nota: aca no se implementa Passport, aunque LocalStrategy llama a validateUser y login() aprovecha el req.user que Passport inyecta en el controlador.
@@ -43,8 +42,7 @@ export class AuthService {
       username: usuario.username,
       rol: usuario.rol,
     }
-    return userPayload 
-
+    return userPayload
   }
 
   // Genera JWT con sub (id del usuario) y role (rol actual).
