@@ -66,7 +66,9 @@
 */
 
 import { Body, Controller, Delete, Get, Post, Param, Query, Request, UseGuards, SetMetadata } from '@nestjs/common'
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiOperation, ApiQuery, ApiTags, ApiExtension } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOperation, ApiQuery, ApiTags, ApiExtension, ApiProperty } from '@nestjs/swagger'
+import { Throttle, SkipThrottle } from '@nestjs/throttler'
+
 import { CerrarSolicitudDto } from './dto/cerrar-solicitud.dto'
 import { CrearSolicitudDto } from './dto/crear-solicitud.dto'
 import { EliminarSolicitudDto } from './dto/eliminar-solicitud.dto'
@@ -79,15 +81,14 @@ import { DemoPolicyGuard } from '../../auth/guards/demo-policy.guard'
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard'
 import { RolesGuard } from '../../auth/guards/roles.guard'
 import { SolicitudService } from './solicitud.service'
-import { Throttle, SkipThrottle } from '@nestjs/throttler'
 import { Rol } from '../../auth/types/rol.enum'
 //import { audit } from 'rxjs'
 
-//@Controller('solicitud') 
+//@Controller('solicitud')  
 // @Roles('SUPERADMIN')
 // @UseGuards(JwtAuthGuard, RolesGuard)
-@ApiTags('solicitud')
-@ApiBearerAuth()
+    @ApiTags('solicitud') // Agrupa los endpoints de este controlador bajo la etiqueta "solicitud" en Swagger.
+    @ApiBearerAuth() // Requiere token JWT para acceder
 @SkipThrottle({ 'restrictive': true, 'health': true })
 @Throttle({ 'normal-human': { ttl: 60000, limit: 30 } }) 
 //@Throttle({ 'normal-human': {} }) // 🛡️ TODOS los endpoints usaran la estrategia 'normal-human'

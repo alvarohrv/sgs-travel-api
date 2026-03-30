@@ -51,7 +51,8 @@ export class RolesGuard implements CanActivate {
     // getClass()	Método de NestJS para obtener la clase actual del controlador que se está ejecutando
     // El orden de búsqueda es importante: primero se verifica el método, luego la clase.
 
-    // se verifica si requiredRoles es undefined o un array vacío. Si no hay roles requeridos, se permite el acceso retornando true.
+    // se verifica si requiredRoles es undefined o un array vacío (no se implemento @Roles por ejemplo).
+    // Si no hay roles requeridos, se permite el acceso retornando true.
     if (!requiredRoles || requiredRoles.length === 0) {
       return true
     }

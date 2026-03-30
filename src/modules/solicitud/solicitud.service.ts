@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common' 
 import { Prisma } from '@prisma/client'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { DemoPolicyService } from '../../auth/demo-policy.service'
@@ -10,7 +10,9 @@ import { EliminarTodasSolicitudesDto } from './dto/eliminar-todas-solicitudes.dt
 import { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto'
 import { RespuestaApiEstandar } from './interfaces/respuesta-api.interface'
 
-@Injectable()
+// @Injectable se usa en la declaración de la clase para marcarla como un proveedor que puede ser inyectado.
+@Injectable() // Decorador que marca esta clase como un proveedor inyectable en el sistema de inyección de dependencias de NestJS <3. Permite que esta clase sea inyectada en otros lugares y también que se le inyecten dependencias (como PrismaService y DemoPolicyService). Ademas cumple con el patrón de diseño Singleton, es decir, NestJS creará una única instancia de esta clase y la compartirá en toda la aplicación.
+//no confundir con @Inject (ver es )
 export class SolicitudService {
   private readonly tablasReiniciables = [
     'historial_estado_boleto',
