@@ -6,20 +6,16 @@ import { JwtPayloadType, ResponseLoginJwt, PreJwtPayload } from './types/jwt-pay
 
 @Injectable()
 export class AuthService {
-  // nota: aca no se implementa Passport, aunque LocalStrategy llama a validateUser y login() aprovecha el req.user que Passport inyecta en el controlador.
-
   constructor(
-    private readonly usuarioService: UsuarioService, // ← se inyecta
+    private readonly usuarioService: UsuarioService,
     private readonly jwtService: JwtService,
   ) {}
 
   // Valida credenciales para la estrategia local.
-  async validateUser(username: string, password: string) { //estándar esperado//
-    
-    // metodo es usado en LocalStrategy (/auth/strategies/local.strategy.ts) para validar las credenciales del usuario. 
+  async validateUser(username: string, password: string) {
     const usuario = await this.usuarioService.obtenerUsuarioParaLogin(username)
 
-    if (!usuario || usuario.disabled_at) { //usuario puede ser null o estar deshabilitado
+    if (!usuario || usuario.disabled_at) {
       throw new UnauthorizedException('Credenciales invalidas')
     }
 
@@ -52,13 +48,10 @@ export class AuthService {
     const payload: JwtPayloadType = {
       sub: user.id,
       role: user.rol,
-    } // es buena práctica definir una interfaz 
+    }
 
-    const token = this.jwtService.sign(payload) //<3
-      // Esto segun la estrategia JWT (jwt.strategy.ts) se validará usando el secret definido en la configuración JWT (/config/jwt.config.ts)      
+    const token = this.jwtService.sign(payload)
 
-      /* JwtService no funciona solo. Necesita saber cuál es el secret para firmar el token y las opciones de expiración. Esta configuración se proporciona a través de JwtModule, que se registra en AuthModule mediante el JwtModule.registerAsync() que se le pasa una función useFactory para cargar la configuración de forma dinámica desde jwtConfig y que retorna un objeto de configuración (JwtModuleOptions) con el secret y las opciones de expiración Luego, JwtService utiliza esta configuración para generar el token JWT con el payload definido.*/
-      
     const response: ResponseLoginJwt = {
       success: true,
       message: 'Login exitoso',
@@ -71,7 +64,46 @@ export class AuthService {
         },
       },
     }
-
     return response
+  }
+
+
+  
+
+  // Lista negra con timestamps para limpiar tokens automáticamente
+  private tokenBlacklist: Map<string, number> = new Map()
+
+  /**
+   * Invalida un token añadiéndolo a la lista negra con un timestamp.
+   * @param token El token JWT a invalidar.
+   */
+  async invalidateToken(token: string): Promise<void> {
+    const now = Date.now()
+    this.tokenBlacklist.set(token, now)
+    this.cleanupBlacklist() // Limpia tokens expirados al añadir uno nuevo
+  }
+
+  /**
+   * Verifica si un token está en la lista negra.
+   * @param token El token JWT a verificar.
+   * @returns true si el token está invalidado, false en caso contrario.
+   */
+  isTokenInvalidated(token: string): boolean {
+    this.cleanupBlacklist() // Limpia tokens expirados antes de verificar
+    return this.tokenBlacklist.has(token)
+  }
+
+  /**
+   * Limpia tokens de la lista negra que hayan expirado (más de 2 horas).
+   */
+  private cleanupBlacklist(): void {
+    const now = Date.now()
+    const twoHours = 2 * 60 * 60 * 1000 // 2 horas en milisegundos
+
+    for (const [token, timestamp] of this.tokenBlacklist.entries()) {
+      if (now - timestamp > twoHours) {
+        this.tokenBlacklist.delete(token)
+      }
+    }
   }
 }

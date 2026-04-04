@@ -30,7 +30,6 @@ export class AuthController {
     return this.authService.login(req.user as PreJwtPayload)
     // nota: req.user esta definido por Passport después de validar las credenciales con LocalStrategy, no se usa el modelo Usuario directamente.
   }
-}
 /*
 DESCRIPCIÓN: Endpoint para iniciar sesión y obtener un JWT.
 ENDPOINT: POST /auth/login
@@ -55,3 +54,64 @@ RESPUESTA:
 }
     
 */
+
+  @Post('logout')
+  async logout(@Request() req: any) {
+    const token = req.headers.authorization?.split(' ')[1]; // Extract token from Authorization header
+    if (!token) {
+      return { message: 'No token provided' };
+    }
+
+    await this.authService.invalidateToken(token);
+
+    return { message: 'Logged out successfully' };
+  }
+
+  /*
+    Descripción: Endpoint para cerrar sesión. En una implementación real, esto podría implicar invalidar el token JWT (por ejemplo, agregándolo a una lista negra) para que no pueda ser usado nuevamente.
+    Endpoint: POST /auth/logout
+    Ejemplo de uso:
+    POST http://localhost:3000/api/v1/auth/logout
+    Headers:
+    Authorization: Bearer <token>
+    Respuesta:
+    {
+        "message": "Logged out successfully"
+    }
+  */
+
+  @Post('validate-token')
+  async validateToken(@Request() req: any) {
+    const token = req.headers.authorization?.split(' ')[1]; // Extract token from Authorization header
+    if (!token) {
+      return { valid: false, message: 'No token provided' };
+    }
+
+    const isInvalidated = this.authService.isTokenInvalidated(token);
+    if (isInvalidated) {
+      return { valid: false, message: 'Token is invalidated' };
+    }
+
+    return { valid: true, message: 'Token is valid' };
+  }
+}
+/*
+Descripción: Endpoint para validar un token JWT. Esto es útil para verificar si un token es válido o ha sido invalidado (por ejemplo, después de cerrar sesión).
+Endpoint: POST /auth/validate-token 
+Ejemplo de uso:
+POST http://localhost:3000/api/v1/auth/validate-token
+Headers:
+Authorization: Bearer <token>
+Respuesta:
+{
+    "valid": true,
+    "message": "Token is valid"
+}
+o
+{
+    "valid": false,
+    "message": "Token is invalidated"
+}
+*/  
+
+
