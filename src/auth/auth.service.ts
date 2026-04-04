@@ -62,7 +62,46 @@ export class AuthService {
         },
       },
     }
-
     return response
+  }
+
+
+  
+
+  // Lista negra con timestamps para limpiar tokens automáticamente
+  private tokenBlacklist: Map<string, number> = new Map()
+
+  /**
+   * Invalida un token añadiéndolo a la lista negra con un timestamp.
+   * @param token El token JWT a invalidar.
+   */
+  async invalidateToken(token: string): Promise<void> {
+    const now = Date.now()
+    this.tokenBlacklist.set(token, now)
+    this.cleanupBlacklist() // Limpia tokens expirados al añadir uno nuevo
+  }
+
+  /**
+   * Verifica si un token está en la lista negra.
+   * @param token El token JWT a verificar.
+   * @returns true si el token está invalidado, false en caso contrario.
+   */
+  isTokenInvalidated(token: string): boolean {
+    this.cleanupBlacklist() // Limpia tokens expirados antes de verificar
+    return this.tokenBlacklist.has(token)
+  }
+
+  /**
+   * Limpia tokens de la lista negra que hayan expirado (más de 2 horas).
+   */
+  private cleanupBlacklist(): void {
+    const now = Date.now()
+    const twoHours = 2 * 60 * 60 * 1000 // 2 horas en milisegundos
+
+    for (const [token, timestamp] of this.tokenBlacklist.entries()) {
+      if (now - timestamp > twoHours) {
+        this.tokenBlacklist.delete(token)
+      }
+    }
   }
 }
