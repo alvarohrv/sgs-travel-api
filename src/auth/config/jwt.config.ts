@@ -3,7 +3,11 @@ import type { StringValue } from 'ms'
 
 export default registerAs(
   'jwt',
-  (): { secret: string; expiresIn: StringValue | number } => {
+  (): {
+    secret: string
+    expiresIn: StringValue | number
+    refreshExpiresIn: StringValue | number // Para el refresh token, se busca usar el formato de tiempo como '7d' o '30m', pero es posible usar un número en segundos
+  } => {
     // es importante definir los tipos de retorno para que ConfigType<typeof jwtConfig> funcione correctamente en la inyección de dependencias.
     // StringValue no es un string cualquiera, es un tipo específico que acepta formatos de tiempo como '1h', '30m', '7d', etc., lo que es común para la configuración de expiración de tokens JWT.
 
@@ -21,8 +25,9 @@ export default registerAs(
       // expiresIn puede ser:
       // - Un StringValue (formato ms como '1h', '30m', '7d') ✓ Tipo seguro
       // - Un número en segundos (ej: 3600 para 1 hora) ✓ Tipo seguro
-      // Aquí asignamos un default '1h' que es compatible con ambos tipos.
-      expiresIn: (process.env.JWT_EXPIRES_IN ?? '1h') as StringValue,
+      // Aquí asignamos un default '15m' que es compatible con ambos tipos.
+      expiresIn: (process.env.JWT_EXPIRES_IN ?? '5m') as StringValue,
+      refreshExpiresIn: (process.env.JWT_REFRESH_EXPIRES_IN ?? '7d') as StringValue,
     }
   },
 )
@@ -32,3 +37,4 @@ export default registerAs(
 // NestJS registra esta configuración con la clave 'jwt'
 // El objeto jwtConfig tiene una propiedad especial: jwtConfig.KEY que vale 'jwt'
 // @Inject(jwtConfig.KEY)  Es equivalente a @Inject('jwt')
+

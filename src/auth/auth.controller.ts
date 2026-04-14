@@ -5,6 +5,7 @@ import { Throttle, SkipThrottle } from '@nestjs/throttler'
 
 import { Public } from './decorators/public.decorator'
 import { LoginDto } from './dto/login.dto'
+import { RefreshTokenDto } from './dto/refresh-token.dto'
 import { AuthService } from './auth.service'
 import { PreJwtPayload } from './types/jwt-payload.type'
 
@@ -93,6 +94,12 @@ RESPUESTA:
     }
 
     return { valid: true, message: 'Token is valid' };
+  }
+
+  @Public()
+  @Post('refresh')
+  async refresh(@Body() body: RefreshTokenDto) {
+    return this.authService.refreshToken(body.refreshToken)
   }
 }
 /*

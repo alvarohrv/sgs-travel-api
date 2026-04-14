@@ -12,8 +12,35 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  
- // Habilitar versionado URI
+
+  // intento 1
+  // Configuración de CORS para permitir cualquier origen
+  // app.enableCors({ origin: '*' });
+  // intento 2 
+  // CORS nativo de NestJS (sin middleware externo)
+  // app.enableCors({
+  //   // origin: ['http://localhost:4321'],
+  //   // TODOS
+  //   origin: '*', // Permitir solicitudes desde cualquier origen (útil para desarrollo, pero no recomendado para producción sin restricciones)
+  //   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  //   credentials: true,
+  // });
+  // intento 3: CORS con configuración específica para el frontend
+  // app.enableCors({
+  //   origin: 'http://localhost:4321',  // ← El origen de tu frontend
+  //   credentials: true,                 // ← Necesario para cookies/auth headers
+  //   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  //   allowedHeaders: ['Content-Type', 'Authorization'],
+  // });
+  // intento 4: CORS con múltiples orígenes permitidos
+  app.enableCors({
+    origin: ['http://localhost:4321', 'http://localhost:3000'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  });
+
+
+  // Habilitar versionado URI
   app.enableVersioning({
     type: VersioningType.URI, // identificar la versión en las peticiones por la URI
                               // genera el '/v'+ version, automáticamente

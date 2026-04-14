@@ -196,7 +196,24 @@ model usuario {
   historial_estado_solicitud  historial_estado_solicitud[]
   boletos_emitidos            boleto[]                      @relation("boletoEmitidoPorUsuario")
   cotizaciones_cargadas       cotizacion[]                  @relation("cotizacionCargadaPorUsuario")
+  refresh_tokens              RefreshToken[]
   solicitud                   solicitud[]
+}
+
+model RefreshToken {
+  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  user_id     Int      @db.UnsignedInt
+  token_hash  String   @db.VarChar(255)
+  revoked     Boolean  @default(false)
+  expires_at  DateTime? @db.Timestamp(0)
+  last_used_at DateTime? @db.Timestamp(0)
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+  updated_at  DateTime? @updatedAt @db.Timestamp(0)
+  usuario     usuario  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_user_refresh_token")
+
+  @@index([token_hash], map: "idx_refresh_tokens_token_hash")
+  @@index([user_id], map: "idx_refresh_tokens_user_id")
+  @@map("refresh_tokens")
 }
 
 model detalle_vuelo_solicitud {
@@ -207,6 +224,8 @@ model detalle_vuelo_solicitud {
   destino               String    @db.VarChar(100)
   fecha_ida             DateTime  @db.Date
   fecha_vuelta          DateTime? @db.Date
+  horario_ida           detalle_vuelo_horario?
+  horario_vuelta        detalle_vuelo_horario?
   created_at            DateTime  @default(now()) @db.Timestamp(0)
   solicitud             solicitud @relation(fields: [solicitud_id], references: [id], onUpdate: Restrict, map: "fk_detalle_solicitud")
 
@@ -283,4 +302,11 @@ enum segmento_cotizacion_tipo_segmento {
   IDA
   VUELTA
   ESCALA
+}
+
+enum detalle_vuelo_horario {
+  MANANA
+  TARDE
+  NOCHE
+  MADRUGADA
 }

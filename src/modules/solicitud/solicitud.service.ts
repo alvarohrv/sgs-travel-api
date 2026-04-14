@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { Prisma, detalle_vuelo_horario } from '@prisma/client'
 import { PrismaService } from '../../../prisma/prisma.service'
 import { DemoPolicyService } from '../../auth/demo-policy.service'
 import { CerrarSolicitudDto } from './dto/cerrar-solicitud.dto'
@@ -158,6 +158,8 @@ export class SolicitudService {
     preferencia_aerolinea: string | null
     fecha_ida: Date
     fecha_vuelta: Date | null
+    horario_ida?: detalle_vuelo_horario | null
+    horario_vuelta?: detalle_vuelo_horario | null
   }> }>(solicitud: T) {
     const detalle = solicitud.detalle_vuelo_solicitud?.[0]
     const {
@@ -194,6 +196,13 @@ export class SolicitudService {
       vuelta: this.formatearFechaSoloDia(detalle?.fecha_vuelta),
     }
 
+    const horario = detalle?.horario_ida || detalle?.horario_vuelta
+      ? {
+          ida: detalle?.horario_ida ?? null,
+          vuelta: detalle?.horario_vuelta ?? null,
+        }
+      : null
+
     const estadoSolicitudLimpio = estado_solicitud
       ? {
           id: estado_solicitud.id,
@@ -229,6 +238,7 @@ export class SolicitudService {
       estado_solicitud: estadoSolicitudLimpio,
       ruta,
       fechas,
+      horario,
       cotizacion: cotizacionesCompletas,
     }
   }
@@ -290,6 +300,8 @@ export class SolicitudService {
         fecha_ida: new Date(data.fechas.ida),
         fecha_vuelta: data.fechas.vuelta ? new Date(data.fechas.vuelta) : null,
         preferencia_aerolinea: data.ruta.preferencia_aerolinea ?? null,
+        horario_ida: data.horario?.ida ?? null,
+        horario_vuelta: data.horario?.vuelta ?? null,
       }
     })
 
@@ -313,6 +325,7 @@ export class SolicitudService {
             ida: data.fechas.ida,
             vuelta: data.fechas.vuelta ?? null,
           },
+          horario: data.horario ?? null,
           created_at: solicitud.created_at
         }
       },
@@ -372,6 +385,9 @@ export class SolicitudService {
         },
       }
     }
+    // Si estado es undefined, null, o un string vacío (""), la condición será false y no se aplicará ningún filtro por estado, trayendo solicitudes de todos los estados.
+    // el bloque de código dentro del if no se ejecutará, y no se aplicará ningún filtro relacionado con el estado en la consulta.
+    // No se añadirá la condición where.estado_solicitud, por lo que la consulta traerá solicitudes sin importar su estado.
 
     // Calculamos cuántos registros saltar para llegar a la página pedida
     const skip = (page - 1) * limit
@@ -434,6 +450,8 @@ export class SolicitudService {
               preferencia_aerolinea: true,
               fecha_ida: true,
               fecha_vuelta: true,
+              horario_ida: true,
+              horario_vuelta: true,
             },
             take: 1,
             orderBy: {
@@ -540,6 +558,8 @@ export class SolicitudService {
             preferencia_aerolinea: true,
             fecha_ida: true,
             fecha_vuelta: true,
+            horario_ida: true,
+            horario_vuelta: true,
           },
           take: 1,
           orderBy: {

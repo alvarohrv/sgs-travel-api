@@ -1,10 +1,3 @@
-//////// http://localhost:3000/docs
-
-////???? PENDIENTE PROBAR ENDPOINT DE CIERRE Y GENERAR UN ENDPOINT DE REAPERTURA (solo SUPERADMIN) PARA DESMARCAR closed_at Y VOLVER A ABRIR LA SOLICITUD.
-
-// -- validar uso de los campos nuevos de auditoria (created_at, updated_at, closed_at disabled_at)
-
-
 //// Archivo original (antes de la edición):
 // import { Controller } from '@nestjs/common';
 // import { SolicitudService } from './solicitud.service';
@@ -111,7 +104,7 @@ export class SolicitudController {
     */
 
   // 1️⃣ Crear solicitud (Empleado)
-  // POST /solicitud
+  // POST /api/v1/solicitud
     
   @Post()
     @ApiOperation({ summary: 'Crear solicitud' })
@@ -140,6 +133,10 @@ export class SolicitudController {
       "fechas": {
         "ida": "2026-03-10",  
         "vuelta": "2026-03-20"
+      },
+      "horario": {
+        "ida": "MANANA",
+        "vuelta": "TARDE"
       }
     }
   - nota: preferencia_aerolinea es un campo opcional.
@@ -150,7 +147,7 @@ export class SolicitudController {
     "data": {
         "solicitud": {
             "id": 7,
-            "radicado": "EMP003-7",
+            "radicado": "EMP000-7",
             "estado": "PENDIENTE",
             "tipo_de_vuelo": "IDA_Y_VUELTA",
             "ruta": {
@@ -162,7 +159,11 @@ export class SolicitudController {
                 "ida": "2026-03-10",
                 "vuelta": "2026-03-20"
             },
-            "created_at": "2026-03-21T20:00:09.000Z"
+            "horario": {
+                "ida": "MANANA",
+                "vuelta": "TARDE"
+            },
+            "created_at": "2026-04-06T16:03:19.000Z"
         }
     },
     "event": {
@@ -170,9 +171,8 @@ export class SolicitudController {
     }
 }
   */
-
   // 2️⃣ Admin abre solicitud para revisión
-  // POST /solicitud/:id/iniciar-revision
+  // POST /api/v1/solicitud/:id/iniciar-revision
   @Post(':id/iniciar-revision')
     @ApiOperation({ summary: 'Iniciar revisión de solicitud por parte de un administrador' })
     @ApiExtension('x-order', 7)
@@ -199,7 +199,7 @@ export class SolicitudController {
         "data": {
             "solicitud_id": 7,
             "estado": "EN REVISION",
-            "msn_sistema": "Revisión iniciada por AR (EMP003)"
+            "msn_sistema": "Revisión iniciada por SR USUARIO (EMP000)"
         },
         "event": {
             "type": "SOLICITUD_EN_REVISION"
@@ -208,7 +208,7 @@ export class SolicitudController {
 */
 
   // 3️⃣ Rechazar solicitud (comentario obligatorio)
-  // POST /solicitud/:id/rechazar
+  // POST /api/v1/solicitud/:id/rechazar
   @Post(':id/rechazar')
     @ApiOperation({ summary: 'Rechazar solicitud por parte de un administrador' })
     @ApiExtension('x-order', 8)
@@ -228,7 +228,7 @@ export class SolicitudController {
   /*
   DESCRIPCION: Cuando se rechaza una solicitud, el cliente envía un POST a /solicitud/:id/rechazar con un comentario obligatorio que explica el motivo del rechazo. El controlador captura el ID de la solicitud a través del parámetro de ruta y el comentario a través del cuerpo de la petición. Luego, llama al método rechazarSolicitud del servicio, que se encarga de cambiar el estado de la solicitud a RECHAZADA, registrar el comentario y disparar el evento correspondiente.
   ENDPOINT: POST /solicitud/:id/rechazar
-            Ejemplo: POST http://localhost:3000/api/v1/solicitud/1/rechazar
+            Ejemplo: POST http://localhost:3000/api/v1/solicitud/7/rechazar
   BODY:
     {
       "comentario": "Solicitud no cumple con los requisitos mínimos para ser procesada. Por favor revise la información y genera una nueva solicitud." 
@@ -238,7 +238,7 @@ export class SolicitudController {
     "success": true,
     "message": "Solicitud rechazada correctamente",
     "data": {
-        "solicitud_id": 1,
+        "solicitud_id": 7,
         "estado": "RECHAZADA",
         "comentario": "Solicitud no cumple con los requisitos mínimos para ser procesada. Por favor revise la información y genera una nueva solicitud."
     },
@@ -261,7 +261,7 @@ export class SolicitudController {
 
   ///// NOTA: La ruta fija debe ir antes de la dinámica /////
 
-  // GET /solicitud/mis-solicitudes
+  // GET /api/v1/solicitud/mis-solicitudes
   // Reutiliza el mismo servicio de listado, pero fuerza el filtro por usuario autenticado.
     
   @Get('mis-solicitudes')
@@ -294,8 +294,11 @@ export class SolicitudController {
   }
   /*
   DESCRIPCION: Este endpoint permite a un usuario autenticado obtener solo sus propias solicitudes. El controlador está protegido por JwtAuthGuard, lo que significa que el usuario debe enviar un token JWT válido en la cabecera de la petición. El controlador extrae el ID del usuario del token (req.user.id) y luego llama al método obtenerSolicitudes del servicio, pasando ese ID como filtro para que solo se devuelvan las solicitudes creadas por ese usuario. También soporta los mismos query params de paginación y filtrado por estado que el endpoint general de listado de solicitudes.
-  ENDPOINT: GET /solicitud/mis-solicitudes
-  Ejemplo: GET http://localhost:3000/api/v1/solicitud/mis-solicitudes?estado=pendiente&page=1&limit=5
+  ENDPOINT: GET /api/v1/solicitud/mis-solicitudes
+  Ejemplo:
+  GET http://localhost:3000/api/v1/solicitud/mis-solicitudes?estado=pendiente&page=1&limit=5
+
+
   BODY: No requiere body, pero sí debe incluir un token JWT válido en la cabecera Authorization
   RESPUESTA:
   {
@@ -1261,8 +1264,9 @@ RESPUESTA:
   // AUNQUE EXISTE ESTE ENDPOINT DE CONSULTA POR ID, NO SE EXPONDRA EN LA DOCUMENTACION PÚBLICA, YA QUE LA IDEA ES QUE LAS SOLICITUDES SE CONSULTEN SIEMPRE A TRAVÉS DE LOS ENDPOINTS DE LISTADO Y NO DIRECTAMENTE POR ID.
 
 
+
   // 7.5 Cerrar solicitud (marca closed_at, sin borrado físico)
-  // POST /solicitud/:id/cerrar
+  // POST /api/v1/solicitud/:id/cerrar
     
   @Post(':id/cerrar')
     @ApiOperation({ summary: 'Cerrar solicitud por parte de un administrador' })
@@ -1281,7 +1285,7 @@ RESPUESTA:
   }
   /*
   DESCRIPCION: Este endpoint permite "cerrar" una solicitud sin eliminarla físicamente de la base de datos. Al cerrar una solicitud, se marca el campo closed_at con la fecha y hora actual, lo que indica que la solicitud ya no está activa ni visible en los listados normales.
-  ENDPOINT POST /solicitud/:id/cerrar
+  ENDPOINT POST /api/v1/solicitud/:id/cerrar
   Ejemplo: POST http://localhost:3000/api/v1/solicitud/5/cerrar
 
   BODY:
@@ -1350,16 +1354,16 @@ RESPUESTA:
 
   // 8️⃣ Eliminar físicamente todas las solicitudes con todas sus dependencias
   // DELETE /solicitud/eliminar-todas
-  @Delete('eliminar-todas')
-  @ApiExcludeEndpoint() 
-  @ApiOperation({ summary: 'Eliminar físicamente todas las solicitudes de viaje (endpoint de seguridad crítica)' })
-  @Roles(Rol.SUPERADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  async eliminarTodasLasSolicitudes(
-    @Body() data: EliminarTodasSolicitudesDto,
-  ) {
-    return this.solicitudService.eliminarTodasLasSolicitudes(data)
-  }
+//   @Delete('eliminar-todas')
+//   @ApiExcludeEndpoint() 
+//   @ApiOperation({ summary: 'Eliminar físicamente todas las solicitudes de viaje (endpoint de seguridad crítica)' })
+//   @Roles(Rol.SUPERADMIN)
+//   @UseGuards(JwtAuthGuard, RolesGuard)
+//   async eliminarTodasLasSolicitudes(
+//     @Body() data: EliminarTodasSolicitudesDto,
+//   ) {
+//     return this.solicitudService.eliminarTodasLasSolicitudes(data)
+//   }
 /*
 DESCRIPCION: Este endpoint es para eliminar físicamente todas las solicitudes de viaje y todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR_TODAS") para evitar borrados accidentales. El controlador recibe los datos de confirmación en el cuerpo de la petición y luego llama al método eliminarTodasLasSolicitudes del servicio, que se encarga de realizar la eliminación física en la base de datos. Si la eliminación es exitosa, se dispara un evento SOLICITUDES_ELIMINADAS_COMPLETAMENTE para notificar a otros sistemas o servicios interesados.
 ENDPOINT: DELETE /solicitud/eliminar-todas
@@ -1377,17 +1381,17 @@ RESPUESTA:
 //////////////// ESTE ENDPOINT AUNQUE EXITE NO SE EXPONDRA EN LA DOCUMENTACION PUBLICA /////////////////s
   // DELETE /solicitud/usuario/:usuarioId
 
-  @Delete('usuario/:usuarioId')
-    @ApiOperation({ summary: 'Eliminar físicamente todas las solicitudes de un usuario específico (endpoint de seguridad crítica)' })
-  @ApiExcludeEndpoint() 
-  @Roles(Rol.SUPERADMIN)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  async eliminarSolicitudesPorUsuario(
-    @Param('usuarioId') usuarioId: string,
-    @Body() data: EliminarSolicitudesUsuarioDto,
-  ) {
-    return this.solicitudService.eliminarSolicitudesPorUsuario(Number(usuarioId), data)
-  }
+//   @Delete('usuario/:usuarioId')
+//     @ApiOperation({ summary: 'Eliminar físicamente todas las solicitudes de un usuario específico (endpoint de seguridad crítica)' })
+//   @ApiExcludeEndpoint() 
+//   @Roles(Rol.SUPERADMIN)
+//   @UseGuards(JwtAuthGuard, RolesGuard)
+//   async eliminarSolicitudesPorUsuario(
+//     @Param('usuarioId') usuarioId: string,
+//     @Body() data: EliminarSolicitudesUsuarioDto,
+//   ) {
+//     return this.solicitudService.eliminarSolicitudesPorUsuario(Number(usuarioId), data)
+//   }
 /*
 Aunque este endpoint existe en el controlador, no se expondrá en la documentación pública, ya que es un endpoint de seguridad crítica diseñado para eliminar todas las solicitudes de un usuario específico. Solo se usará en casos muy puntuales, como limpieza de datos de prueba para usuarios demo. 
 
@@ -1605,5 +1609,4 @@ app.get('/solicitudes', (req, res) => {
 
 DTO significa Data Transfer Object. Es una clase que define la forma exacta que deben tener los datos que llegan en el body. Si el cliente manda campos de más o de menos, el DTO lo controla.
 Es el equivalente a validar de forma estructurada y con tipos de TypeScript.
-
  */

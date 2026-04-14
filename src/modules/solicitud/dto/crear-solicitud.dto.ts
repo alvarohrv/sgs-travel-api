@@ -1,3 +1,5 @@
+import { detalle_vuelo_horario } from '@prisma/client';
+
 export class RutaDto {
   origen: string;
   destino: string;
@@ -9,8 +11,17 @@ export class FechasDto {
   vuelta?: string; // opcional para vuelos solo de ida
 }
 
+export class HorarioDto {
+  ida?: detalle_vuelo_horario; // opcional // formato: "MANANA" | "TARDE" | "NOCHE" | "MADRUGADA"
+  vuelta?: detalle_vuelo_horario; // opcional // formato: "MANANA" | "TARDE" | "NOCHE" | "MADRUGADA"
+}
+
 export class CrearSolicitudDto {
   tipo_de_vuelo: string; // "IDA_Y_VUELTA" | "SOLO_IDA"
   ruta: RutaDto;
   fechas: FechasDto;
+  horario: HorarioDto;
 }
+
+
+

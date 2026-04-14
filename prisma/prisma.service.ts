@@ -24,7 +24,7 @@ export class PrismaService
       await this.$connect();
       console.log('✅ Base de datos conectada correctamente.');
     } catch (error) {
-      console.error('❌ Error al conectar a la base de datos:', error.message);
+      console.error('❌ Error al conectar a la base de datos:', error instanceof Error ? error.message : String(error));
       // No lanzamos el error para que el servidor siga prendido
     }
   }

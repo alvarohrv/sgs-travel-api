@@ -1,7 +1,3 @@
-    ////???? Es posible perdida del viaje por parte del solicitante, si se genera una novedad (sea de ida o de vuelta) que requiere emitir una nueva entidad del boleto, pues el precio final puede cambiar
-
-    ///// validar de nuevo si ocurre ''COTIZACION SELECCIONADA'' al crear boleto
-
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Request, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger'
 import { Throttle, SkipThrottle} from '@nestjs/throttler'
@@ -46,7 +42,8 @@ export class BoletoController {
     return this.boletoService.emitirBoleto(Number(cotizacionId), usuarioId, data, userRole);
   }
   /*
-  DESCRIPCIÓN: Admin emite un boleto a partir de una cotización aprobada. El boleto queda en estado "EMITIDO". Si se proporciona un reemplaza_boleto_id, el nuevo boleto reemplaza al anterior y este último queda anulado. La solicitud asociada a la cotización pasa a estado "BOLETO EMITIDO".
+  DESCRIPCIÓN: Admin emite un boleto a partir de una cotización aprobada. El boleto queda en estado "EMITIDO".
+  Si se proporciona un reemplaza_boleto_id, el nuevo boleto reemplaza al anterior y este último queda anulado. La solicitud asociada a la cotización pasa a estado "BOLETO EMITIDO".
   ENDPOINT POST /cotizacion/:cotizacionId/boleto
               Ej: POST http://localhost:3000/api/v1/cotizacion/7/boleto
   BODY   
@@ -104,7 +101,7 @@ export class BoletoController {
                 "destino": "Cartagena"
             },
             "valor_final": "760000",
-            "created_at": "2026-03-21T20:30:54.000Z",
+            "created_at": "2026-04-06T19:59:26.000Z",
             "segmentos": [
                 {
                     "tipo_segmento": "IDA",
@@ -212,6 +209,16 @@ export class BoletoController {
             ]
         }
     }
+
+    ///////// Cuando se genere el modulo de comentario se espera esta
+    "comentario": {
+      "id": 400,
+      "usuario": {
+        "id": 12,
+        "nombre": "Carlos Pérez",
+        "rol": "SOLICITANTE"
+    },
+
   */
 
   // POST /boleto/:boletoId/reemplazar
@@ -229,11 +236,17 @@ export class BoletoController {
     return this.boletoService.reemplazarBoleto(Number(boletoId), usuarioId, data, userRole);
   }
 /*
-  DESCRIPCIÓN: Admin reemplaza un boleto ya emitido por uno nuevo. El boleto anterior queda anulado y el nuevo boleto queda en estado "EMITIDO". La solicitud asociada a la cotización del boleto reemplazado permanece en estado "BOLETO EMITIDO".
+
+DESCRIPCIÓN:
+// Admin reemplaza un boleto ya emitido por uno nuevo. El boleto anterior queda anulado y el nuevo boleto queda en estado "EMITIDO". La solicitud asociada a la cotización del boleto reemplazado permanece en estado "BOLETO EMITIDO".
+  //Al ser el 'Boleto' el documento final que respalda el viaje, su emisión es un paso crítico en el proceso de gestión de viajes. Por tanto:
+ // - La entidad Boleto en caso de correcciones (parcial o total) generara un nuevo boleto con referencia al boleto que reemplaza  y el boleto que se reemplaza quedará anulado.
+ // - El remplazo solo es posible si el nuevo boleto tiene la misma cobertura, el mismo origen y destino que el boleto que reemplaza, esto para evitar confusiones y asegurar la trazabilidad de los cambios realizados en los boletos, pero si es posible modificar el valor final y los detalles de los segmentos (horarios, aerolíneas, etc).
+ // - Si un segemento cambia su origen o destino, se estaría hablando de un nuevo viaje diferente al original, este segmento debe quedar marcado como 'CANCELADO' 'NO PRESENTADO'; y debe generar un nuevo boleto que refleje el nuevo viaje, y este nuevo boleto no tendría referencia al boleto anterior, pues se estaría hablando de un nuevo viaje diferente al original.
+
+
   ENDPOINT POST /boleto/:boletoId/reemplazar
               Ej: POST http://localhost:3000/api/v1/boleto/2/reemplazar
-
-    // La entidad Boleto en caso de correcciones (parcial o total) generara un nuevo boleto que reemplaza al anterior, quedando este último anulado. Esto se hace para mantener un historial claro de los cambios realizados en los boletos y para asegurar la trazabilidad de las modificaciones. Al crear un nuevo boleto en lugar de modificar el existente, se puede conservar un registro completo de las versiones anteriores del boleto, lo que es importante para auditorías y para entender el historial de cambios en caso de futuras consultas o disputas.
 
   BODY
   {
@@ -338,7 +351,6 @@ RESPUESTA
         ]
     }
 }
-
   */
 
 
@@ -367,8 +379,7 @@ RESPUESTA
   "comentario": "La novedad reportada no afecta la validez del boleto, se conserva el boleto emitido."
   }
   RESPUESTA
-
-  {
+{
     "success": true,
     "message": "Boleto revisado y conservado correctamente",
     "data": {
@@ -382,14 +393,13 @@ RESPUESTA
         "affected_entities": [
             {
                 "entity": "solicitud",
-                "id": 5,
+                "id": 6,
                 "new_state": "BOLETO CARGADO"
             }
         ]
     }
 }
-  
-  */
+*/
 
 
   // POST /boleto/:id/confirmar
@@ -406,7 +416,12 @@ RESPUESTA
     return this.boletoService.confirmarBoleto(Number(id), usuarioId, data, userRole);
   }
   /*
-  DESCRIPCIÓN: El solicitante confirma finalmente estar conforme con  
+  Acceso: 🔒 Protegido | Rol permitido: SOLICITANTE, DEMO, SUPERADMIN
+
+  DESCRIPCIÓN: 
+    El solicitante confirma finalmente estar conforme con  el boleto emitido o con la solución propuesta ante una novedad. El boleto pasa a estado "CONFORME POR EL EMPLEADO" y la solicitud asociada a la cotización del boleto pasa a estado "VIAJE PROGRAMADO".
+
+    La confirmación es una acción exclusiva del solicitante, ya que representa su aceptación y conformidad final con el boleto emitido o con la solución propuesta ante una novedad. El administrador no puede confirmar un boleto.
 
   ENDPOINT  POST /boleto/:id/confirmar
             Ej:  http://localhost:3000/api/v1/boleto/3/confirmar
@@ -435,6 +450,7 @@ RESPUESTA
         ]
     }
 }
+
     
   */
 
@@ -447,12 +463,11 @@ RESPUESTA
         return this.boletoService.obtenerPorId(id)
   }
 
-
     /*
     URL de ejemplo: http://localhost:3000/api/v1/boleto/3
 
     RESPUESTA:
-    {
+{
     "success": true,
     "message": "Boleto obtenido correctamente",
     "data": {
@@ -466,19 +481,19 @@ RESPUESTA
                 "nombre": "Carlos"
             },
             "usuario_generador_boleto": {
-                "id": 3,
-                "nombre": "ar"
+                "id": 4,
+                "nombre": "Sr Usuario"
             },
             "estado_boleto": {
                 "id": 2,
                 "estado": "CONFORME POR EL EMPLEADO",
                 "slug": "conforme_empleado",
                 "editable": false,
-                "created_at": "2026-03-21T23:34:07.000Z"
+                "created_at": "2026-04-06T10:57:32.000Z"
             },
             "cobertura": "IDA_Y_VUELTA",
             "valor_final": "840000",
-            "created_at": "2026-03-22T05:07:25.000Z",
+            "created_at": "2026-04-06T20:28:58.000Z",
             "ruta": {
                 "origen": "Bogota",
                 "destino": "Cartagena"
@@ -524,59 +539,59 @@ RESPUESTA
     async obtenerHistorialEstadoPorId(@Param('id', ParseIntPipe) id: number) {
         return this.boletoService.obtenerHistorialPorBoletoId(id)
     }
+
+ 
     /*
     DESCRIPCIÓN: Obtener el historial de estados de un boleto específico por su ID. Esto incluye todos los cambios de estado que ha tenido el boleto a lo largo del tiempo, junto con las fechas y los usuarios que realizaron cada cambio.
     ENDPOINT: GET /boleto/:id/historial-estado
               Ej: http://localhost:3000/api/v1/boleto/3/historial-estado
     RESPUESTA:
-    {
-        "success": true,
-        "message": "Historial de boleto obtenido correctamente",
-        "data": {
-            "boleto_id": 3,
-            "historial_estado_boleto": [
-                {
-                    "id": 7,
-                    "boleto_id": 3,
-                    "estado_id": 2,
-                    "usuario_id": 1,
-                    "observacion": "Confirmo que el boleto es correcto y estoy conforme con la solución propuesta.",
-                    "created_at": "2026-03-22T05:11:17.000Z",
-                    "estado_boleto": {
-                        "id": 2,
-                        "estado": "CONFORME POR EL EMPLEADO",
-                        "slug": "conforme_empleado"
-                    },
-                    "usuario": {
-                        "id": 1,
-                        "nombre": "Carlos",
-                        "username": "carlos"
-                    }
+{
+    "success": true,
+    "message": "Historial de boleto obtenido correctamente",
+    "data": {
+        "boleto_id": 3,
+        "historial_estado_boleto": [
+            {
+                "id": 7,
+                "boleto_id": 3,
+                "estado_id": 2,
+                "usuario_id": 4,
+                "observacion": "Confirmo que el boleto es correcto y estoy conforme con la solución propuesta.",
+                "created_at": "2026-04-06T21:00:43.000Z",
+                "estado_boleto": {
+                    "id": 2,
+                    "estado": "CONFORME POR EL EMPLEADO",
+                    "slug": "conforme_empleado"
                 },
-                {
+                "usuario": {
                     "id": 4,
-                    "boleto_id": 3,
-                    "estado_id": 1,
-                    "usuario_id": 3,
-                    "observacion": "Boleto reemplazado",
-                    "created_at": "2026-03-22T05:07:25.000Z",
-                    "estado_boleto": {
-                        "id": 1,
-                        "estado": "BOLETO EMITIDO",
-                        "slug": "boleto_emitido"
-                    },
-                    "usuario": {
-                        "id": 3,
-                        "nombre": "ar",
-                        "username": "ar"
-                    }
+                    "nombre": "Sr Usuario",
+                    "username": "usuario_demo"
                 }
-            ],
-            "total": 2
-        }
+            },
+            {
+                "id": 4,
+                "boleto_id": 3,
+                "estado_id": 1,
+                "usuario_id": 4,
+                "observacion": "Boleto reemplazado",
+                "created_at": "2026-04-06T20:28:58.000Z",
+                "estado_boleto": {
+                    "id": 1,
+                    "estado": "BOLETO EMITIDO",
+                    "slug": "boleto_emitido"
+                },
+                "usuario": {
+                    "id": 4,
+                    "nombre": "Sr Usuario",
+                    "username": "usuario_demo"
+                }
+            }
+        ],
+        "total": 2
     }
-
-    
+}    
     */
 
 }
