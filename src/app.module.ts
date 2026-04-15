@@ -1,20 +1,32 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
+import { PrismaModule } from '../prisma/prisma.module';
 // import { AppService } from './app.service';
+//---
+import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard } from '@nestjs/throttler';
+import { ConfigModule } from '@nestjs/config';
+//---
+import databaseConfig from './config/database.config';
+// import jwtConfig from './auth/config/jwt.config'; //NO_APLICA, ya se importa en AuthModule
+
+//---
+import { AuthModule } from './auth/auth.module';
 import { SolicitudModule } from './modules/solicitud/solicitud.module';
 import { CotizacionModule } from './modules/cotizacion/cotizacion.module';
 import { BoletoModule } from './modules/boleto/boleto.module';
 // import { ComentarioModule } from './modules/comentario/comentario.module';
 import { UsuarioModule } from './modules/usuario/usuario.module';
 import { HistorialModule } from './modules/historial/historial.module';
-import { PrismaModule } from '../prisma/prisma.module';
-import { AuthModule } from './auth/auth.module';
-import { ThrottlerModule } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard } from '@nestjs/throttler';
+
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // Hace que la configuración esté disponible en toda la app
+      load: [databaseConfig],
+    }),
     PrismaModule,
     SolicitudModule,
     CotizacionModule,
@@ -60,4 +72,4 @@ export class AppModule {}
 
 
 
-  
+

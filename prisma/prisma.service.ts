@@ -1,17 +1,23 @@
 import { Injectable, OnModuleInit } from '@nestjs/common'
 import { PrismaClient } from '@prisma/client'
 import { PrismaMariaDb } from '@prisma/adapter-mariadb'
+import { ConfigService } from '@nestjs/config'
 
 @Injectable()
 export class PrismaService
   extends PrismaClient
   implements OnModuleInit {
 
-  constructor() {
-    const databaseUrl = process.env.DATABASE_URL
+    //antes//
+  // constructor() {
+  //   const databaseUrl = process.env.DATABASE_URL
+  // ahora//
+  constructor(private readonly configService: ConfigService) {
+    const databaseUrl = configService.get<string>('database.url')
+    // La prioridad por entorno se define en database.config.ts. (ver ese archivo para más detalles).
 
     if (!databaseUrl) {
-      throw new Error('DATABASE_URL no esta definida en las variables de entorno')
+      throw new Error('No se encontró URL de base de datos. Define DATABASE_URL (local) o MYSQL_URL (production).')
     }
 
     super({

@@ -123,7 +123,12 @@ async function bootstrap() {
     },
   });
 
-
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    console.log('Running in production mode');
+  } else {
+    console.log('Running in development mode');
+  }
 
   await app.listen(3000); 
   console.log(`🚀 Servidor corriendo en: ${await app.getUrl()}`);

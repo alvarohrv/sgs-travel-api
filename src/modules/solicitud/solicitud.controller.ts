@@ -1354,16 +1354,16 @@ RESPUESTA:
 
   // 8️⃣ Eliminar físicamente todas las solicitudes con todas sus dependencias
   // DELETE /solicitud/eliminar-todas
-//   @Delete('eliminar-todas')
-//   @ApiExcludeEndpoint() 
-//   @ApiOperation({ summary: 'Eliminar físicamente todas las solicitudes de viaje (endpoint de seguridad crítica)' })
-//   @Roles(Rol.SUPERADMIN)
-//   @UseGuards(JwtAuthGuard, RolesGuard)
-//   async eliminarTodasLasSolicitudes(
-//     @Body() data: EliminarTodasSolicitudesDto,
-//   ) {
-//     return this.solicitudService.eliminarTodasLasSolicitudes(data)
-//   }
+  @Delete('eliminar-todas')
+  @ApiExcludeEndpoint() 
+  @ApiOperation({ summary: 'Eliminar físicamente todas las solicitudes de viaje (endpoint de seguridad crítica)' })
+  @Roles(Rol.SUPERADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async eliminarTodasLasSolicitudes(
+    @Body() data: EliminarTodasSolicitudesDto,
+  ) {
+    return this.solicitudService.eliminarTodasLasSolicitudes(data)
+  }
 /*
 DESCRIPCION: Este endpoint es para eliminar físicamente todas las solicitudes de viaje y todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR_TODAS") para evitar borrados accidentales. El controlador recibe los datos de confirmación en el cuerpo de la petición y luego llama al método eliminarTodasLasSolicitudes del servicio, que se encarga de realizar la eliminación física en la base de datos. Si la eliminación es exitosa, se dispara un evento SOLICITUDES_ELIMINADAS_COMPLETAMENTE para notificar a otros sistemas o servicios interesados.
 ENDPOINT: DELETE /solicitud/eliminar-todas
@@ -1381,17 +1381,17 @@ RESPUESTA:
 //////////////// ESTE ENDPOINT AUNQUE EXITE NO SE EXPONDRA EN LA DOCUMENTACION PUBLICA /////////////////s
   // DELETE /solicitud/usuario/:usuarioId
 
-//   @Delete('usuario/:usuarioId')
-//     @ApiOperation({ summary: 'Eliminar físicamente todas las solicitudes de un usuario específico (endpoint de seguridad crítica)' })
-//   @ApiExcludeEndpoint() 
-//   @Roles(Rol.SUPERADMIN)
-//   @UseGuards(JwtAuthGuard, RolesGuard)
-//   async eliminarSolicitudesPorUsuario(
-//     @Param('usuarioId') usuarioId: string,
-//     @Body() data: EliminarSolicitudesUsuarioDto,
-//   ) {
-//     return this.solicitudService.eliminarSolicitudesPorUsuario(Number(usuarioId), data)
-//   }
+  @Delete('usuario/:usuarioId')
+    @ApiOperation({ summary: 'Eliminar físicamente todas las solicitudes de un usuario específico (endpoint de seguridad crítica)' })
+  @ApiExcludeEndpoint() 
+  @Roles(Rol.SUPERADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  async eliminarSolicitudesPorUsuario(
+    @Param('usuarioId') usuarioId: string,
+    @Body() data: EliminarSolicitudesUsuarioDto,
+  ) {
+    return this.solicitudService.eliminarSolicitudesPorUsuario(Number(usuarioId), data)
+  }
 /*
 Aunque este endpoint existe en el controlador, no se expondrá en la documentación pública, ya que es un endpoint de seguridad crítica diseñado para eliminar todas las solicitudes de un usuario específico. Solo se usará en casos muy puntuales, como limpieza de datos de prueba para usuarios demo. 
 
@@ -1448,7 +1448,7 @@ RESPUESTA:
 
 /////////////////////////////////////////////////////////////////////
 /*
-DESCRIPCION: Esta ruto para eliminar una solicitud es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR") para evitar borrados accidentales. El controlador recibe el ID de la solicitud a eliminar a través del parámetro de ruta y los datos de confirmación en el cuerpo de la petición. Luego, llama al método eliminarSolicitudCompletamente del servicio, que se encarga de eliminar físicamente la solicitud y todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Si la eliminación es exitosa, se dispara un evento SOLICITUD_ELIMINADA_COMPLETAMENTE para notificar a otros sistemas o servicios interesados.
+DESCRIPCION: Esta ruta para eliminar una solicitud es un endpoint de seguridad crítica, por lo que requiere una confirmación explícita en el body (confirmacion: "ELIMINAR") para evitar borrados accidentales. El controlador recibe el ID de la solicitud a eliminar a través del parámetro de ruta y los datos de confirmación en el cuerpo de la petición. Luego, llama al método eliminarSolicitudCompletamente del servicio, que se encarga de eliminar físicamente la solicitud y todas sus dependencias (cotizaciones, boletos, historial) de la base de datos. Si la eliminación es exitosa, se dispara un evento SOLICITUD_ELIMINADA_COMPLETAMENTE para notificar a otros sistemas o servicios interesados.
 ENDPOINT: DELETE /solicitud/:id
 Ejemplo: DELETE /solicitud/5
 BODY:

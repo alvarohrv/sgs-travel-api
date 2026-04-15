@@ -13,7 +13,7 @@ export class AppController {
   
 
 
-  @Get('health')
+  @Get('health') // Endpoint: GET /health
   @SkipThrottle({ 'restrictive': true, 'heavy-load': true, 'normal-human': true }) //health: true
   // @Throttle({ 'health': { ttl: 60000, limit: 60 }) // 🛡️ TODOS los endpoints de aquí usarán 60 req/min
   // Usata la estrategia 'health' definida en AppModule para este endpoint específico  

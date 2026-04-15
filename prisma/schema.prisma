@@ -2,8 +2,8 @@ generator client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "mysql"
+datasource db {    
+  provider = "mysql"  // Esto funciona tanto para MySQL como para MariaDB
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
