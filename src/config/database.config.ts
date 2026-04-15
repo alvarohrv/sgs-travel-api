@@ -6,8 +6,12 @@ export default registerAs(
 
         const isProduction = process.env.NODE_ENV === 'production';
         const databaseUrl = isProduction
-            ? (process.env.MYSQL_URL || process.env.DATABASE_URL)
-            : (process.env.DATABASE_URL || process.env.MYSQL_URL);
+            ? (process.env.MYSQL_URL || process.env.DATABASE_URL)  // Producción: prioriza MYSQL_URL
+            : (process.env.DATABASE_URL || process.env.MYSQL_URL); // Desarrollo: prioriza DATABASE_URL
+
+            if (!databaseUrl) {
+                throw new Error('No se encontró una URL de conexión válida para la base de datos.');
+            }
 
         return {
             host: process.env.MYSQLHOST || 'localhost',
