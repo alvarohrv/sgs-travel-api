@@ -4,6 +4,11 @@ import "dotenv/config";
 import { defineConfig } from "prisma/config";
 // import { defineConfig } from '@prisma/sdk'; // se puede usar este import si el anterior no funciona, dependiendo de la versión de Prisma.
 
+const isProduction = process.env.NODE_ENV === "production";
+const prismaDatasourceUrl = isProduction
+  ? process.env.MYSQL_URL || process.env.DATABASE_URL
+  : process.env.DATABASE_URL || process.env.MYSQL_URL;
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -11,7 +16,7 @@ export default defineConfig({
     seed: 'ts-node prisma/seed/seed-users.ts', // Comando para ejecutar el seeding, se puede usar el mismo comando que en package.json o el que corresponda a tu proyecto.
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    url: prismaDatasourceUrl,
   },
 });
 
