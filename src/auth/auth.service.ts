@@ -57,7 +57,9 @@ export class AuthService {
   }
 
   // Genera JWT con sub (id del usuario) y role (rol actual).
+  // Siempre que el login sea exitoso (LocalAuthGuard sea exitoso), se retornará un token.
   async login(user: { id: number; username: string; rol: string }) {
+    // user, en este caso es el objeto que viene de req.user, que es inyectado por Passport después de validar las credenciales con LocalStrategy. (no directamente de los servicios de UsuarioService).
     const payload: JwtPayloadType = {
       sub: user.id,
       role: user.rol,
@@ -86,119 +88,7 @@ export class AuthService {
   }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  //////////// NUEVO: Manejo de Refresh Tokens y Logout ////////////
-
-  async refreshToken(rawRefreshToken: string): Promise<ResponseRefreshJwt> {
-    if (!rawRefreshToken) {
-      throw new UnauthorizedException('Refresh token no proporcionado')
-    }
-
-    let payload: RefreshJwtPayloadType
-    try {
-      payload = this.jwtService.verify<RefreshJwtPayloadType>(rawRefreshToken, {
-        secret: this.config.secret, 
-      })
-    } catch {
-      throw new UnauthorizedException('Refresh token invalido o expirado')
-    }
-
-    if (payload.type !== 'refresh') {
-      throw new UnauthorizedException('Tipo de token invalido')
-    }
-
-    const hashedToken = this.hashToken(rawRefreshToken)
-    const now = new Date()
-
-    const refreshTokenRepo = (this.prisma as any).refreshToken
-
-    const session = await refreshTokenRepo.findFirst({
-      where: {
-        user_id: payload.sub,
-        token_hash: hashedToken,
-        revoked: false,
-        expires_at: {
-          gt: now,
-        },
-      },
-      select: {
-        id: true,
-        user_id: true,
-      },
-    })
-
-    if (!session) {
-      throw new UnauthorizedException('Refresh token no reconocido o revocado')
-    }
-
-    const user = await this.prisma.usuario.findUnique({
-      where: { id: session.user_id },
-      select: {
-        id: true,
-        username: true,
-        rol: true,
-        disabled_at: true,
-      },
-    })
-
-    if (!user || user.disabled_at) {
-      throw new UnauthorizedException('Usuario no autorizado')
-    }
-
-    const nextRefreshToken = await this.prisma.$transaction(async (tx) => {
-      await (tx as any).refreshToken.update({
-        where: { id: session.id },
-        data: {
-          last_used_at: now,
-        },
-      })
-
-      return this.revokeAndCreateRefreshToken(user.id, user.rol, tx)
-    })
-
-    const newAccessToken = this.jwtService.sign({
-      sub: user.id,
-      role: user.rol,
-    })
-
-    return {
-      success: true,
-      message: 'Token refrescado correctamente',
-      data: {
-        token: newAccessToken,
-        refreshToken: nextRefreshToken,
-      },
-    }
-  }
-
-
   
-
-
-
-
-
-
-
 
   // Lista negra con timestamps para limpiar tokens automáticamente
   private tokenBlacklist: Map<string, number> = new Map()
@@ -235,86 +125,5 @@ export class AuthService {
         this.tokenBlacklist.delete(token)
       }
     }
-  }
-
-
-  
-   
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  /////////////// NUEVO: Funciones auxiliares para manejo de refresh tokens ///////////////
-
-  private hashToken(token: string): string {
-    return createHash('sha256').update(token).digest('hex')
-  }
-
-  private signRefreshToken(userId: number, role: string): string {
-    const payload: RefreshJwtPayloadType = {
-      sub: userId,
-      role,
-      type: 'refresh',
-    }
-
-    return this.jwtService.sign(payload, {
-      expiresIn: this.config.refreshExpiresIn,
-    })
-  }
-
-  private getTokenExpiration(rawToken: string): Date {
-    const decoded = this.jwtService.decode(rawToken)
-
-    if (!decoded || typeof decoded !== 'object' || !('exp' in decoded)) {
-      throw new UnauthorizedException(
-        'No se pudo determinar expiracion del refresh token',
-      )
-    }
-
-    const exp = (decoded as { exp?: number }).exp
-    if (!exp) {
-      throw new UnauthorizedException('Refresh token sin expiracion valida')
-    }
-
-    return new Date(exp * 1000)
-  }
-
-  private async revokeAndCreateRefreshToken(
-    userId: number,
-    role: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<string> {
-    const client = tx ?? this.prisma
-    const refreshTokenRepo = (client as any).refreshToken
-
-    await refreshTokenRepo.updateMany({
-      where: {
-        user_id: userId,
-        revoked: false,
-      },
-      data: {
-        revoked: true,
-      },
-    })
-
-    const refreshToken = this.signRefreshToken(userId, role)
-    const expiresAt = this.getTokenExpiration(refreshToken)
-    const tokenHash = this.hashToken(refreshToken)
-
-    await refreshTokenRepo.create({
-      data: {
-        user_id: userId,
-        token_hash: tokenHash,
-        revoked: false,
-        expires_at: expiresAt,
-      },
-    })
-
-    return refreshToken
   }
 }

@@ -86,7 +86,7 @@ async function bootstrap() {
     ApiExtension es un decorador nativo de @nestjs/swagger que permite agregar estas extensiones
     */
     swaggerOptions: {
-      operationsSorter: (a: any, b: any) => {
+      operationsSorter: (a: any, b: any) => { //1
         // Ordenar por método HTTP
         const methodOrder: Record<string, number> = {
           get: 1,
@@ -109,7 +109,7 @@ async function bootstrap() {
         // Ordenar alfabéticamente por path
         return String(a.get('path') ?? '').localeCompare(String(b.get('path') ?? ''));
       },
-      tagsSorter: (a: string, b: string) => {
+      tagsSorter: (a: string, b: string) => {  //2
         const tagOrder: Record<string, number> = {
           Health: 1,
           auth: 2,
@@ -122,10 +122,14 @@ async function bootstrap() {
       },
     },
   });
+  /*
+  nota: en \nest-cli.json se habilito un plugin para que al generar archivos con el CLI de NestJS, se apliquen automáticamente decoradores de Swagger (como @ApiProperty) y de class-validator (como @IsString) en los DTOs, entidades, etc.
+  */
 
 
-
-  await app.listen(3000); 
+  app.enableCors(); // Habilitar CORS para permitir solicitudes desde el frontend (ajustar configuración según sea necesario) // CERRAR A LA APP EN REACT !!!
+  //await app.listen(3000); 
+  await app.listen(process.env.PORT ?? 3000);
   console.log(`🚀 Servidor corriendo en: ${await app.getUrl()}`);
 }
 

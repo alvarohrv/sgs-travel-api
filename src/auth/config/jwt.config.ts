@@ -1,7 +1,25 @@
 import { registerAs } from '@nestjs/config'
 import type { StringValue } from 'ms'
 
-export default registerAs(
+// @nestjs/config es una librería instalada para manejar la configuración de la aplicación, especialmente para leer variables de entorno de manera centralizada y tipada. y sin exponerlos directamente en el código fuente, y para facilitar la configuración en diferentes entornos (desarrollo, producción, etc.) sin cambiar el código.
+
+/*
+Cada módulo maneja su propia configuración (o almenos, es lo recomendado)
+No mezclar configuraciones diferentes en un solo archivo
+src/
+├── auth/
+│   ├── config/
+│   │   └── jwt.config.ts        ← configuración JWT
+│   ├── strategies/
+│   └── auth.module.ts
+├── database/
+│   ├── config/
+│   │   └── database.config.ts   ← configuración BD
+│   └── database.module.ts
+└── app.module.ts
+*/
+
+export default registerAs(  //usamos un export 'default', podamos darle el nombre que queramos lo recomendado sera jwtConfig.
   'jwt',
   (): {
     secret: string
@@ -9,13 +27,17 @@ export default registerAs(
     refreshExpiresIn: StringValue | number // Para el refresh token, se busca usar el formato de tiempo como '7d' o '30m', pero es posible usar un número en segundos
   } => {
     // es importante definir los tipos de retorno para que ConfigType<typeof jwtConfig> funcione correctamente en la inyección de dependencias.
-    // StringValue no es un string cualquiera, es un tipo específico que acepta formatos de tiempo como '1h', '30m', '7d', etc., lo que es común para la configuración de expiración de tokens JWT.
+    // jwtConfig será la variable que almacena la configuración registrada con la clave 'jwt' cuando se importe.
+    // Luego se puede inyectar usando @Inject('jwt') o @Inject(jwtConfig.KEY).
+    // .KEY es una propiedad especial que tiene el objeto retornado por registerAs, que contiene la clave con la que se registró la configuración ('jwt' en este caso). Esto es útil para evitar errores de tipeo al inyectar la configuración.
+    // Esta configuración se usa en: JwtModule.registerAsync() y en JwtStrategy: aunque se podria usar en los servicios directamente (no es los recomendado).
+    // nota: StringValue no es un string cualquiera, es un tipo específico que acepta formatos de tiempo como '1h', '30m', '7d', etc., lo que es común para la configuración de expiración de tokens JWT.
 
     // Patrón recomendado: centralizar lectura de variables de entorno.
     // Así evitamos usar process.env directamente en módulos/estrategias.
 
+    /* ALGUNA LOGICA: */ 
     const secret = process.env.JWT_SECRET
-
     if (!secret) {
       throw new Error('JWT_SECRET no esta definida en variables de entorno')
     }

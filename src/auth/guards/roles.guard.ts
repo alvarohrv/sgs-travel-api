@@ -16,6 +16,7 @@ declare global { // Estará disponibles en todo el proyecto sin necesidad de imp
 
 @Injectable()
 export class RolesGuard implements CanActivate {
+  // Inyectamos el Reflector para poder acceder a los metadatos definidos por el decorador (sera @Roles) en los controladores o métodos.
   constructor(private readonly reflector: Reflector) {}
 
 
@@ -50,19 +51,27 @@ export class RolesGuard implements CanActivate {
     // getClass()	Método de NestJS para obtener la clase actual del controlador que se está ejecutando
     // El orden de búsqueda es importante: primero se verifica el método, luego la clase.
 
-    // se verifica si requiredRoles es undefined o un array vacío. Si no hay roles requeridos, se permite el acceso retornando true.
+    // se verifica si requiredRoles es undefined o un array vacío (no se implemento @Roles por ejemplo).
+    // Si no hay roles requeridos, se permite el acceso retornando true.
     if (!requiredRoles || requiredRoles.length === 0) {
       return true
     }
 
     const request = context.switchToHttp().getRequest<Request>()
     const user = request.user
-    const currentRole = user?.role ?? null
+    const currentRole = user?.role
 
+    // Si el usuario no tiene un rol definido, se deniega el acceso retornando false.
     if (!currentRole) {
-      return false
+      // return false
+      // throw new Error('Usuario no tiene un rol definido. Acceso denegado.')
+      throw new UnauthorizedException('Usuario no tiene permisos para el recurso. Acceso denegado.')
+      // en lugar de un 403 Forbidden, se lanza una excepción de Unauthorized (401).
     }
 
+    // Validación final: se verifica si el rol del usuario coincide con alguno de los roles requeridos para acceder al endpoint. 
     return requiredRoles.includes(currentRole)
   }
 }
+
+// request.headers['authorization']	Accede al encabezado de autorización de la solicitud HTTP, que generalmente contiene el token JWT. Este Guard se ejecuta después de que el JwtAuthGuard haya validado el token y haya extraído la información del usuario, incluyendo su rol. Por lo tanto, request.user debería estar disponible con los datos del usuario autenticado, incluyendo su rol.
