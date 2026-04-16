@@ -157,16 +157,22 @@ Railway permite desplegar tanto la base de datos MySQL como la aplicación NestJ
 1. **Crear proyecto en Railway** → "Deploy from GitHub repo".
 2. **Añadir base de datos MySQL** → Railway aprovisiona esta base de datos y asigna la variable de entorno `MYSQL_URL`.
 3. **Configurar las variables de entorno** en el panel de Railway:
-   - `NODE_ENV=production`
+   - `DATABASE_URL` con el valor de `MYSQL_URL` dado por Railway: ${{MySQL.MYSQL_URL}}.
    - `JWT_SECRET`
    - `JWT_EXPIRES_IN`
    - `REFRESH_TOKEN_EXPIRES_IN`
-   - `MYSQL_URL` (se asigna automáticamente, no necesitas crearla)
-4. Railway leerá el comando de inicio definido en `package.json` y ejecutará automáticamente la instalación.
-5. **Migraciones en producción**: Es posible que Railway no ejecuta migraciones automáticamente. Debes ejecutarlas manualmente una vez:
-   ```bash
-   npx prisma migrate deploy
-   ```
+4. **Migraciones en producción**: Railway no ejecuta migraciones automáticamente. Debes ejecutarlas manualmente una vez:
+  1. Abre la pestaña "Settings"
+  2. Baja hasta "Deploy"
+  3. Busca "Pre-deploy Command"
+  4. Escribe en el campo de texto el comando para ejecutar las migraciones:
+     ```bash
+    npx prisma migrate deploy
+    ```
+  - Presiona Enter o guarda
+  Ahora cada vez que hagas deploy, Railway ejecutará ese comando antes de iniciar tu aplicación.
+5. Railway leerá el comando de inicio definido en `package.json` y ejecutará automáticamente la instalación.
+
 > **Nota importante**: Asegúrate de que todas las migraciones de Prisma estén actualizadas y versionadas en Git antes de desplegar en producción.
 
 ---

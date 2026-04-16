@@ -1,16 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 
-const databaseUrl = process.env.DATABASE_URL; //Variable de entorno que contiene la URL de conexión a la base de datos, definida en .env
-
-if (!databaseUrl) {
-  throw new Error('DATABASE_URL no esta definida en variables de entorno');
-}
-
-const prisma = new PrismaClient({
-  adapter: new PrismaMariaDb(databaseUrl),
-}); //Se requiere configurar el cliente de Prisma para usar el adaptador de MariaDB, ya que Prisma no tiene soporte nativo para MariaDB. El adaptador se encarga de traducir las consultas de Prisma a sintaxis compatible con MariaDB. Se pasa la URL de conexión a la base de datos al adaptador para que pueda establecer la conexión correctamente.
+const prisma = new PrismaClient();
 
 async function main() {
   const salt = await bcrypt.genSalt(10);

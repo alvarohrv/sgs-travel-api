@@ -3,6 +3,9 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
+
+console.log("🔍 URL de conexión a la base de datos:", process.env.DATABASE_URL); // Log
+
 if (!process.env.DATABASE_URL) {
   throw new Error("No se define DATABASE_URL para Prisma.");
 }
@@ -17,6 +20,9 @@ export default defineConfig({
     url: process.env.DATABASE_URL,
   },
 });
+
+
+// seed: Comando para ejecutar el seeding, se puede usar el mismo comando que en package.json o el que corresponda a tu proyecto.
 
 
 
