@@ -3,9 +3,6 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-
-console.log("🔍 URL de conexión a la base de datos:", process.env.DATABASE_URL); // Log
-
 if (!process.env.DATABASE_URL) {
   throw new Error("No se define DATABASE_URL para Prisma.");
 }
@@ -15,9 +12,6 @@ export default defineConfig({
   migrations: {
     path: "prisma/migrations",
     seed: "ts-node prisma/seed/seed-users.ts",
-  },
-  datasource: {
-    url: process.env.DATABASE_URL,
   },
 });
 

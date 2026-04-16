@@ -4,7 +4,7 @@ generator client {
 
 datasource db {    
   provider = "mysql"  // Esto funciona tanto para MySQL como para MariaDB
-  // url      = env("DATABASE_URL") // ERROR: VERSIO06 DE PRISMA, ahora se define en la configuración   //ANTES: reasignaremos MYSQL_URL a DATABASE_URL en logica de producción
+  url      = env("DATABASE_URL")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

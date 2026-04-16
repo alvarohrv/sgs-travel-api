@@ -13,7 +13,7 @@ export class PrismaService
       throw new Error('No se encontró URL de base de datos. Define DATABASE_URL.')
     }
 
-    super()
+   super()
   }
   async onModuleInit() {
     // Esto conecta a la base de datos cuando el módulo se inicia
