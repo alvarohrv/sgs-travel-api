@@ -2,21 +2,19 @@
 // npm install --save-dev prisma dotenv
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
-// import { defineConfig } from '@prisma/sdk'; // se puede usar este import si el anterior no funciona, dependiendo de la versión de Prisma.
 
-const isProduction = process.env.NODE_ENV === "production";
-const prismaDatasourceUrl = isProduction
-  ? process.env.MYSQL_URL || process.env.DATABASE_URL
-  : process.env.DATABASE_URL || process.env.MYSQL_URL;
+if (!process.env.DATABASE_URL) {
+  throw new Error("No se define DATABASE_URL para Prisma.");
+}
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
-    seed: 'ts-node prisma/seed/seed-users.ts', // Comando para ejecutar el seeding, se puede usar el mismo comando que en package.json o el que corresponda a tu proyecto.
+    seed: "ts-node prisma/seed/seed-users.ts",
   },
   datasource: {
-    url: prismaDatasourceUrl,
+    url: process.env.DATABASE_URL,
   },
 });
 
